@@ -124,3 +124,5 @@ grep still read and validate the entire accepted file, with a MAX+1 growth probe
 
 Baseline build context and measured tables are recorded in
 [the Windows baseline evidence](results/2026-10-16-win32-x64.md).
+PR 1 results and resource assertions are recorded in
+[the Windows PR 1 evidence](results/2026-10-16-win32-x64-pr1-scale01.md).
