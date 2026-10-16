@@ -101,7 +101,9 @@ fn summary_and_count_preserve_line_counts_without_hit_vectors() {
     assert_eq!(work.hit_positions, 0);
     let result = f.call("grep", json!({"pattern":"hit","outputMode":"count","limit":1})).unwrap();
     assert_eq!(result["matched"], 2);
-    assert_eq!(result["total"], 1);
+    assert_eq!(result["totalLowerBound"], 1);
+    assert_eq!(result["totalExact"], false);
+    assert!(result.get("total").is_none());
     assert_eq!(result["items"][0]["count"], 2);
     let work = metrics::take();
     assert_eq!(work.content_items, 0);
@@ -116,8 +118,11 @@ fn content_only_constructs_page_but_counts_whole_last_file() {
     metrics::take();
     let result = f.call("grep", json!({"pattern":"hit","outputMode":"content","offset":128,"limit":2,"beforeContext":1,"afterContext":1})).unwrap();
     assert_eq!(result["matched"], 300);
-    assert_eq!(result["total"], 300);
-    assert_eq!(result["omitted"], 170);
+    assert_eq!(result["totalLowerBound"], 300);
+    assert_eq!(result["scanComplete"], false);
+    assert_eq!(result["stopReason"], "pageLimit");
+    assert!(result.get("total").is_none());
+    assert!(result.get("omitted").is_none());
     assert_eq!(result["nextOffset"], 130);
     assert_eq!(result["items"][0]["line"], 129);
     assert_eq!(result["items"][0]["text"], "hit hit\nhit hit\nhit hit");
@@ -240,4 +245,109 @@ fn glob_legacy_syntax_and_negative_priority_remain_byte_oriented() {
     assert!(!GlobPatterns::new(&patterns).matches(root, &root.join("a.txt")));
     assert!(GlobPatterns::new(&patterns).matches(root, &root.join("a.rs")));
     assert!(GlobPatterns::new(&[]).matches(root, &root.join("a.txt")));
+}
+
+fn budget_call(f: &Fixture, tool: &str, mut args: Value, limits: Value) -> Value {
+    if args.get("path").is_none() { args["path"] = json!(f.root); }
+    let request: Request = serde_json::from_value(json!({
+        "root":f.root,"scope":"budget-test","read_only":true,"tool":tool,"args":args,"file_budget":limits,
+    })).unwrap();
+    dispatch(&request).unwrap()
+}
+
+#[test]
+fn visited_and_deadline_stops_do_not_claim_full_tree_absence() {
+    let mut f = Fixture::new();
+    for i in 0..10 { f.write(&format!("f{i}.txt"), "none\n"); }
+    for limits in [json!({"maxVisitedEntries":2}), json!({"timeoutMs":0})] {
+        let result = budget_call(&f, "grep", json!({"pattern":"hit","outputMode":"summary"}), limits);
+        assert_eq!(result["scanComplete"], false);
+        assert_eq!(result["totalExact"], false);
+        assert_eq!(result["complete"], false);
+        assert!(result.get("total").is_none());
+        assert!(result.get("omitted").is_none());
+    }
+}
+
+#[test]
+fn read_budget_discards_the_unvalidated_current_file() {
+    let mut f = Fixture::new();
+    f.write("a.txt", "hit\n");
+    let mut bad = b"hit\n".repeat(100); bad.push(0xff);
+    f.write("b.txt", bad);
+    let result = budget_call(&f, "grep", json!({"pattern":"hit","outputMode":"summary"}), json!({"maxReadBytes":20}));
+    assert_eq!(result["matched"], 1);
+    assert_eq!(result["files"], 1);
+    assert_eq!(result["stopReason"], "readBytes");
+    assert_eq!(result["scanComplete"], false);
+    assert_eq!(result["totalExact"], false);
+}
+
+#[test]
+fn escaped_long_line_fits_json_budget_and_page_advances() {
+    let mut f = Fixture::new();
+    f.write("long.txt", format!("hit{}\nhit second\n", "中\"\\\t".repeat(10000)));
+    let result = budget_call(&f, "grep", json!({"pattern":"hit","outputMode":"content","limit":1}), json!({"maxOutputBytes":4096,"maxLineBytes":2048}));
+    assert!(serde_json::to_vec(&result).unwrap().len() <= 4096);
+    assert_eq!(result["nextOffset"], 1);
+    assert_eq!(result["items"][0]["textTruncated"], true);
+    let next = budget_call(&f, "grep", json!({"pattern":"hit","outputMode":"content","offset":1,"limit":1}), json!({"maxOutputBytes":4096}));
+    assert_eq!(next["nextOffset"], 2);
+    assert_eq!(next["items"][0]["line"], 2);
+}
+
+#[test]
+fn context_preview_is_a_prefix_even_at_multibyte_boundary() {
+    let (text, bytes) = preview(["中中", "next"], 5);
+    assert_eq!(text, "中");
+    assert_eq!(bytes, 11);
+}
+
+#[test]
+fn output_limited_glob_pages_keep_exact_totals_and_advance() {
+    let mut f = Fixture::new();
+    for i in 0..40 { f.write(&format!("file-{i:03}-{}.txt", "a".repeat(40)), "hit\n"); }
+    let first = budget_call(&f, "glob", json!({"pattern":["*.txt"],"limit":40}), json!({"maxOutputBytes":2048}));
+    assert_eq!(first["scanComplete"], true);
+    assert_eq!(first["totalExact"], true);
+    assert_eq!(first["total"], 40);
+    assert_eq!(first["stopReason"], "outputBytes");
+    let next = first["nextOffset"].as_u64().unwrap();
+    assert!(next > 0 && next < 40);
+    assert!(serde_json::to_vec(&first).unwrap().len() + 1 <= 2048);
+    let second = budget_call(&f, "glob", json!({"pattern":["*.txt"],"offset":next,"limit":40}), json!({"maxOutputBytes":2048}));
+    assert!(second["nextOffset"].as_u64().unwrap() > next);
+    assert_ne!(first["items"][0], second["items"][0]);
+}
+
+#[test]
+fn inspect_text_preview_keeps_exact_lines_and_hex_pages_are_contiguous() {
+    let mut f = Fixture::new();
+    let path = f.write("inspect.txt", format!("{}\nsecond\n", "中".repeat(10000)));
+    let text = budget_call(&f, "inspect_local_file", json!({"path":path,"limit":1}), json!({"maxOutputBytes":2048,"maxLineBytes":100}));
+    assert_eq!(text["total"], 2);
+    assert_eq!(text["nextOffset"], 2);
+    let next_text = budget_call(&f, "inspect_local_file", json!({"path":path,"offset":text["nextOffset"],"limit":1}), json!({"maxOutputBytes":2048}));
+    assert_eq!(next_text["items"][0]["text"], "second");
+    assert_eq!(text["items"][0]["textTruncated"], true);
+    let first = budget_call(&f, "inspect_local_file", json!({"path":path,"view":"hex","offset":0,"limit":1000}), json!({"maxOutputBytes":2048,"maxLineBytes":96}));
+    let next = first["nextOffset"].as_u64().unwrap();
+    assert_eq!(next, 2);
+    assert_eq!(first["omitted"], fs::metadata(&path).unwrap().len() - 32);
+    let second = budget_call(&f, "inspect_local_file", json!({"path":path,"view":"hex","offset":next,"limit":1000}), json!({"maxOutputBytes":2048,"maxLineBytes":96}));
+    assert_eq!(second["items"][0]["offset"], 32);
+}
+
+#[test]
+fn io_errors_stop_with_unconfirmed_counts_and_reads_stay_bounded() {
+    struct Broken;
+    impl Read for Broken {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> { Err(std::io::Error::other("fixture read failure")) }
+    }
+    let mut budget = Budget::new(Default::default()).unwrap();
+    assert!(bounded::read_chunks(Broken, &mut budget).is_err());
+    assert_eq!(budget.reason, Some("readError"));
+    let result = finish(Page::new(&budget.limits), 0, 0, 1, 0, false, &mut budget).unwrap();
+    assert_eq!(result["scanComplete"], false);
+    assert!(result.get("total").is_none());
 }

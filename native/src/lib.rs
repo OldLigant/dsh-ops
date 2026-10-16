@@ -2,6 +2,7 @@
 mod batch;
 pub mod contract;
 mod file;
+pub mod file_budget;
 mod file_path;
 mod paths;
 mod results;

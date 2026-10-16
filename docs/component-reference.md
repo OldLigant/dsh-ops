@@ -97,6 +97,38 @@ Perform a deterministic UTF-8 replacement under `path`. `pattern` is **literal t
 
 ### Results and errors
 
+Read-only file results separate `scanComplete` (scope exhausted), `pageComplete`
+(requested item window filled or exhausted) and `complete` (scope and remaining
+output exhausted without truncation). `totalExact=true` permits exact `total`
+and `omitted`; otherwise those fields are absent and `totalLowerBound` describes
+the confirmed item count. Summary's `matched`/`matches`/`files` are lower bounds
+when `totalExact=false`. Matching counts are still **matching lines**, including
+for `files_with_matches`.
+
+`stopReason` is null or names `pageLimit`, `deadline`, `visitedEntries`,
+`readBytes`, `outputBytes`, `lineBytes`, `entryLimit`, `depthLimit`, `readError`
+or `filesystemError`. Unexpected I/O also prevents an exact full-scope claim;
+invalid UTF-8 and oversize files are excluded by the documented text/size policy.
+Soft stops return `status:"completed"` with `complete:false`; this does not mean
+full-tree absence. External cancellation/hard timeout returns an error after
+worker exit (`CANCELLED` / `DEADLINE_EXCEEDED`, no write effects for reads).
+
+Long text/context uses UTF-8-safe `text` previews with `textTruncated:true` and
+original `textBytes`. A page/output stop with representable entries advances
+`nextOffset`; re-execution rescans the scope, not a snapshot or resume cursor.
+Strict UTF-8 validation and matching must finish for a file before its results
+or counters are committed. Total logical reads and visited-entry counts are
+reported as `readBytes`/`visitedEntries`. Configure limits through
+[`fileBudgets`](configuration-reference.md#filebudgets-defaults-and-ranges).
+
+Read-only globs allow at most 128 patterns, 4096 UTF-8 bytes and 256 segments per
+pattern; grep regex is bounded to 65536 UTF-8 bytes. Existing wildcard and
+multiline behavior is unchanged. Hex retains zero-based offsets in 16-byte units;
+its `nextOffset` uses those units and `omitted` remains bytes. Text uses one-based
+input line offsets; its `nextOffset` now names the next one-based input line,
+correcting the old mixed-base cursor that repeated the previous page. Grep/glob
+continue using zero-based item offsets.
+
 - **File tools, `ops_batch` and `ops_result` never throw.** Failures resolve as values with `status` `"error"` or `"rejected"` (authorization refusal) plus `error.code` / `error.message` / `error.nextAction`; success is `"completed"` (`ops_batch` also reports `planned` and related states). In PTC, a `try/catch` alone misses these failures — check `status`.
 - **`ops_bash`** resolves command results as values: `status` (`completed` only for exit code 0 with no error, permission refusal, signal or timeout; otherwise `failed`), `exitCode`, `stdout` / `stderr`, `error`, `permission`. It throws (a `ToolCallError` in PTC) only for **invalid arguments** or an **unavailable executor**.
 - Host tools (`read` / `write` / `edit` / `pwsh` …) throw `ToolCallError` on failure.

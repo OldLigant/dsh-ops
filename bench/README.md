@@ -87,8 +87,10 @@ Every repetition and warmup is checked for output stability.
   this is boundary evidence, with no speedup or successful-call median.
   Its timings remain available as `rejectedRunsMs` / `rejectionMedianMs`.
 - `EXPECTED_DIFFERENCE`: a query-specific reason in `EXPECTED_DIFFERENCES` in
-  `measure.mjs`; still no speedup. The allowlist is initially empty. A future PR
-  must document the semantic migration and add its own correctness tests.
+  `measure.mjs`; still no speedup. Each entry documents its semantic migration
+  and has correctness tests. PR 2's
+  query allowlist additionally validates unchanged counts/ordered items or valid
+  bounded prefixes; an unexpected content/count change remains MISMATCH.
 
 Any unexpected failure/difference exits nonzero after saving the report. Identical
 error envelopes cannot silently pass as a performance improvement. This script
@@ -113,7 +115,10 @@ the full benchmark to `npm test`; only small harness correctness tests run there
 It requires Cargo/Rust 1.88 or newer and a Windows x64 linker, in addition to the
 existing Node/runtime prerequisites. Test-only counters check metadata, body
 reads, glob parsing and page construction; they are absent from release builds.
-File deadline/completeness integration tests remain follow-up work.
+`test/file-budget.test.mjs` covers soft/hard deadlines, cancellation, unload,
+managed range exit, wrapped byte limits and completeness/pagination with the real
+worker. Set `DSH_OPS_FILE_BUDGET_WORKER` only for an explicit isolated candidate;
+ordinary test runs resolve their installed/source worker as usual.
 
 Hex inspection checks size on the safely opened handle, then reads only the
 requested window. Files over 32 MiB are still rejected. A short read or a changed

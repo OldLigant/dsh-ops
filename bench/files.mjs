@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { createFixtures, cleanupOwned, SEED } from './fixtures.mjs'
-import { sha256, runWorker, summarize, compare, firstDifference, EXPECTED_DIFFERENCES } from './measure.mjs'
+import { sha256, runWorker, summarize, compare, firstDifference, EXPECTED_DIFFERENCES, validateFileMigration } from './measure.mjs'
 
 const HELP = `Manual file benchmark (release vs release, warm filesystem, direct worker).
 node bench/files.mjs --baseline <worker> --candidate <worker> --out <new.json>
@@ -54,6 +54,10 @@ async function main() {
       }
       const summaries = Object.fromEntries(['baseline', 'candidate'].map(engine => [engine, summarize(runs[engine], warmup[engine])]))
       const comparison = compare(summaries.baseline, summaries.candidate, EXPECTED_DIFFERENCES[id], query.expectedError)
+      if (comparison.state === 'EXPECTED_DIFFERENCE' && !validateFileMigration(summaries.baseline.sample, summaries.candidate.sample)) {
+        comparison.state = 'MISMATCH'
+        comparison.expectedDifference = null
+      }
       comparisons.push({ id, ...comparison, difference: firstDifference(summaries.baseline.sample, summaries.candidate.sample) })
       for (const engine of ['baseline', 'candidate']) {
         const { sample, ...summary } = summaries[engine]

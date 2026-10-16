@@ -95,6 +95,8 @@ pub type Result<T> = std::result::Result<T, Failure>;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Request {
+    #[serde(default)]
+    pub file_budget: Option<crate::file_budget::Limits>,
     pub root: String,
     #[serde(default)]
     pub read_only: bool,

@@ -7,6 +7,30 @@ this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Native file deadlines, budgets and completeness (issue #87, PR 1+2)
+
+- Add independent `fileBudgets` configuration: a 30-second initial deadline,
+  visited-entry and logical-read limits, 32 MiB file cap, 96 KiB final rendered
+  output cap and UTF-8-safe text previews. Defaults/ranges are in the configuration
+  reference. Keep the host's 128 KiB capture ceiling.
+- Declare file-tool deadlines, retain startup/settlement headroom, and await actual
+  calls plus managed process exit on cancellation/unload. Read interruptions have
+  no write effects; interrupted replacement publication remains unknown.
+- Expose `scanComplete`, `pageComplete`, `totalExact`, `totalLowerBound` and
+  `stopReason`. Incomplete scans no longer expose fake exact `total`/`omitted` or
+  claim full-tree absence. `status:"completed"` can carry `complete:false`;
+  callers must check completeness. No new `partial` status is introduced.
+- Construct output within serialized-byte limits, including JSON escaping and
+  host wrapper headroom. Long text reports `textTruncated`/`textBytes`; successful
+  output pages advance. Unrepresentable positions fail explicitly. Interrupted
+  current files do not contribute unvalidated UTF-8 results or matching counts.
+- Align inspect/text `nextOffset` with its one-based input line offset so passing
+  it back advances instead of repeating a page. Hex offsets retain 16-byte units;
+  grep/glob retain zero-based item offsets.
+- Add deterministic native and real-worker deadline/cancellation/output regression
+  tests to the existing local gate. Resource/contract changes are explicit expected
+  benchmark differences with no speedup claim; directory-handle reuse is separate.
+
 ### Native file work and bounded reads
 
 - Skip hidden and fixed excluded child names before metadata calls; reuse parsed

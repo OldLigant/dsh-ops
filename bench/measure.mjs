@@ -3,7 +3,21 @@ import { createHash } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
 
 export const sha256 = value => createHash('sha256').update(value).digest('hex')
-export const EXPECTED_DIFFERENCES = Object.freeze({}) // 'fixture/query': 'specific reviewed semantic migration'
+export const EXPECTED_DIFFERENCES = Object.freeze({
+  'small-files/grep-miss': 'PR2 explicit scan/count completeness and bounded reads',
+  'small-files/glob': 'PR2 explicit scan/page completeness and output budget',
+  'deep-tree/grep-miss': 'PR2 explicit completeness/deadline; partial scans are not throughput evidence',
+  'big-file/grep': 'PR2 explicit completeness and read-budget accounting',
+  'big-file/inspect-window': 'PR2 explicit hex pagination and output budgets; offset units unchanged',
+  'dense-hits/summary': 'PR2 explicit exact/lower-bound summary semantics',
+  'dense-hits/count': 'PR2 explicit exact/lower-bound count semantics',
+  'dense-hits/content': 'PR2 removes fake exact totals after per-file page stop',
+  'dense-hits/content-offset': 'PR2 removes fake exact totals after per-file page stop',
+  'edge-text/long-line': 'PR2 bounded UTF-8 text preview with explicit truncation',
+  'edge-text/unicode': 'PR2 explicit completeness; UTF-8/BOM/NUL/CRLF matching unchanged',
+  'edge-text/invalid-utf8': 'PR2 explicit completeness; invalid full-file UTF-8 still excluded',
+  'edge-text/utf8-boundary': 'PR2 explicit completeness; multibyte matching unchanged',
+})
 
 export function canonical(value) {
   const normalize = item => {
@@ -19,6 +33,43 @@ export function median(values) {
   const sorted = [...values].sort((a, b) => a - b)
   const middle = Math.floor(sorted.length / 2)
   return sorted.length ? (sorted[middle] + sorted[Math.floor((sorted.length - 1) / 2)]) / 2 : null
+}
+
+/** A query allowlist cannot silently permit changed counts, paths or text. */
+export function validateFileMigration(baseline, candidate) {
+  if (baseline?.status !== 'completed' || candidate?.status !== 'completed'
+    || typeof candidate.scanComplete !== 'boolean' || candidate.totalExact !== candidate.scanComplete
+    || typeof candidate.pageComplete !== 'boolean') return false
+  const resourceStop = ['deadline', 'visitedEntries', 'readBytes', 'entryLimit', 'depthLimit'].includes(candidate.stopReason)
+  if (!candidate.scanComplete && (candidate.total !== undefined || candidate.omitted !== undefined || candidate.complete !== false)) return false
+  if (!resourceStop && !candidate.scanComplete && candidate.stopReason !== 'pageLimit') return false
+  if (resourceStop && (candidate.scanComplete || candidate.nextOffset !== undefined || candidate.matched > baseline.matched)) return false
+  const before = structuredClone(baseline), after = structuredClone(candidate)
+  const oldItems = before.items ?? [], newItems = after.items ?? []
+  if (resourceStop ? newItems.length > oldItems.length : newItems.length !== oldItems.length) return false
+  let previewed = false
+  for (let i = 0; i < newItems.length; i++) {
+    const item = newItems[i], old = oldItems[i]
+    if (item && typeof item === 'object' && item.textTruncated === true) {
+      if (typeof old?.text !== 'string' || typeof item.text !== 'string' || !old.text.startsWith(item.text)
+        || item.textBytes !== Buffer.byteLength(old.text)) return false
+      previewed = true
+      item.text = old.text; delete item.textTruncated; delete item.textBytes
+    }
+    if (canonical(item) !== canonical(old)) return false
+  }
+  if (resourceStop) return candidate.totalLowerBound === undefined ? baseline.total === undefined : candidate.totalLowerBound <= baseline.total
+  if (!candidate.scanComplete) {
+    if (candidate.totalLowerBound !== baseline.total) return false
+    delete before.total; delete before.omitted
+  }
+  if (previewed && candidate.complete !== false) return false
+  if (!previewed && candidate.truncated !== baseline.truncated) return false
+  if (before.items?.[0]?.view === 'hex') { delete after.total; delete after.nextOffset }
+  for (const value of [before, after]) {
+    for (const key of ['complete', 'truncated', 'scanComplete', 'pageComplete', 'totalExact', 'totalLowerBound', 'stopReason', 'visitedEntries', 'readBytes']) delete value[key]
+  }
+  return canonical(before) === canonical(after)
 }
 
 // Direct native workers have no subprocess descendants; wait for close even after kill/error.

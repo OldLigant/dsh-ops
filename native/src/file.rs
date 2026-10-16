@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 use std::fs::{self};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use crate::file_budget::{Budget, Page, finish, preview};
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt as WindowsMetadataExt;
 
@@ -47,6 +48,8 @@ mod metrics {
 #[cfg(test)]
 #[path = "file_tests.rs"]
 mod tests;
+#[path = "file_read.rs"]
+mod bounded;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -121,9 +124,9 @@ fn text() -> String { "text".into() }
 
 pub fn dispatch(request: &Request) -> Result<Value> {
     match request.tool.as_str() {
-        "inspect_local_file" => inspect(request),
-        "glob" => glob(request),
-        "grep" => grep(request),
+        "inspect_local_file" => bounded::inspect(request),
+        "glob" => bounded::glob(request),
+        "grep" => bounded::grep(request),
         "replace" => replace(request),
         _ => Err(Failure::new("INVALID_ARGUMENT", "Unknown file capability")),
     }
@@ -135,29 +138,37 @@ fn target(raw: &str, _allow_missing: bool) -> Result<PathBuf> {
 fn relative_display(root: &Path, path: &Path) -> String {
     path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/")
 }
+#[cfg(test)]
 fn host_link_or_reparse(path: &Path) -> bool {
-    let Ok(metadata) = std::fs::symlink_metadata(path) else { return true };
-    if metadata.file_type().is_symlink() { return true; }
+    host_link_state(path).unwrap_or(true)
+}
+fn host_link_state(path: &Path) -> std::io::Result<bool> {
+    let metadata = std::fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() { return Ok(true); }
     #[cfg(windows)]
-    if metadata.file_attributes() & 0x400 != 0 { return true; }
-    false
+    if metadata.file_attributes() & 0x400 != 0 { return Ok(true); }
+    Ok(false)
 }
 struct WalkResult {
     files: Vec<PathBuf>,
     truncated: bool,
 }
 
-fn walk(root: &Path) -> Result<WalkResult> {
+fn walk(root: &Path, budget: &mut Budget) -> Result<WalkResult> {
+    if !budget.visit() { return Ok(WalkResult { files: Vec::new(), truncated: true }); }
     let target = crate::file_path::checked(root.to_str().ok_or_else(|| Failure::new("INVALID_ARGUMENT", "Non-UTF8 path"))?)?;
     let directory = target.parent.open_dir_nofollow(&target.name)?;
     let mut files = Vec::new();
     let mut truncated = false;
-    visit_dir(root, directory, 0, &mut files, &mut truncated)?;
+    visit_dir(root, directory, 0, &mut files, &mut truncated, budget)?;
+    truncated |= budget.reason.is_some();
     Ok(WalkResult { files, truncated })
 }
-fn visit_dir(display: &Path, directory: cap_std::fs::Dir, depth: usize, output: &mut Vec<PathBuf>, truncated: &mut bool) -> Result<()> {
+fn visit_dir(display: &Path, directory: cap_std::fs::Dir, depth: usize, output: &mut Vec<PathBuf>, truncated: &mut bool, budget: &mut Budget) -> Result<()> {
+    if !budget.check() { *truncated = true; return Ok(()); }
     if depth > MAX_DEPTH || output.len() >= MAX_ENTRIES {
         *truncated = true;
+        if budget.bounded() { budget.stop(if depth > MAX_DEPTH { "depthLimit" } else { "entryLimit" }); }
         return Ok(());
     }
     #[cfg(test)]
@@ -168,15 +179,17 @@ fn visit_dir(display: &Path, directory: cap_std::fs::Dir, depth: usize, output: 
     let entries = match directory.entries() {
         Ok(entries) => entries,
         Err(error) if depth == 0 => return Err(error.into()),
-        Err(_) => return Ok(()),
+        Err(_) => { if budget.bounded() { budget.stop("filesystemError"); } return Ok(()); },
     };
     for entry in entries {
-        let Ok(entry) = entry else { continue };
+        if !budget.visit() { *truncated = true; return Ok(()); }
+        let Ok(entry) = entry else { if budget.bounded() { budget.stop("filesystemError"); return Ok(()); } continue };
         let Ok(name) = entry.file_name().into_string() else { continue };
         names.push(name);
     }
-    names.sort();
+    names.sort_by(|a, b| { budget.check(); a.cmp(b) });
     for name in names {
+        if !budget.check() { *truncated = true; return Ok(()); }
         // These rules depend only on the name, for files and directories alike.
         // The explicitly requested root is never subject to this child filter.
         if name.starts_with('.') || matches!(name.as_str(), "node_modules" | "target")
@@ -185,19 +198,23 @@ fn visit_dir(display: &Path, directory: cap_std::fs::Dir, depth: usize, output: 
         metrics::record(|w| w.metadata_names.push(name.clone()));
         let metadata = match directory.symlink_metadata(&name) {
             Ok(metadata) => metadata,
-            Err(_) => continue,
+            Err(_) => { if budget.bounded() { budget.stop("filesystemError"); return Ok(()); } continue },
         };
         if crate::file_path::link(&metadata) { continue; }
         let child = display.join(&name);
-        if host_link_or_reparse(&child) { continue; }
+        match host_link_state(&child) {
+            Ok(true) => continue,
+            Ok(false) => {},
+            Err(_) => { if budget.bounded() { budget.stop("filesystemError"); return Ok(()); } continue },
+        }
         if metadata.is_file() {
-            if output.len() >= MAX_ENTRIES { *truncated = true; return Ok(()); }
+            if output.len() >= MAX_ENTRIES { *truncated = true; if budget.bounded() { budget.stop("entryLimit"); } return Ok(()); }
             output.push(child);
             continue;
         }
         if metadata.is_dir() {
-            let Ok(child_dir) = directory.open_dir_nofollow(&name) else { continue };
-            visit_dir(&child, child_dir, depth + 1, output, truncated)?;
+            let Ok(child_dir) = directory.open_dir_nofollow(&name) else { if budget.bounded() { budget.stop("filesystemError"); return Ok(()); } continue };
+            visit_dir(&child, child_dir, depth + 1, output, truncated, budget)?;
             if *truncated && output.len() >= MAX_ENTRIES { return Ok(()); }
         }
     }
@@ -228,12 +245,12 @@ impl<'a> GlobPatterns<'a> {
             .any(|p| p.excluded && glob_segments(&p.segments, &segments))
     }
 }
-fn files_for(path: &str, patterns: &[String]) -> Result<WalkResult> {
+fn files_for(path: &str, patterns: &[String], budget: &mut Budget) -> Result<WalkResult> {
     let root = target(path, false)?;
     if root.is_file() {
         return Ok(WalkResult { files: vec![root.clone()], truncated: false });
     }
-    let walked = walk(&root)?;
+    let walked = walk(&root, budget)?;
     let patterns = GlobPatterns::new(patterns);
     Ok(WalkResult {
         files: walked.files.into_iter()
@@ -305,107 +322,11 @@ fn read_hex_window(file: &mut cap_std::fs::File, size: u64, offset: usize, limit
     Ok((bytes, start, end))
 }
 fn modified(path: &Path) -> u64 { fs::symlink_metadata(path).ok().map_or(0, |m| m.len()) }
-fn result(items: Vec<Value>, total: usize, offset: usize, matched: usize, truncated: bool) -> Value {
-    let returned = items.len(); json!({"status":"completed","phase":"verify","changed":0,"matched":matched,"skipped":offset,"failed":0,"complete":!truncated && offset + returned >= total,"truncated":truncated,"omitted":total.saturating_sub(offset + returned),"items":items,"total":total,"nextOffset":offset + returned})
-}
-
-fn inspect(request: &Request) -> Result<Value> {
-    let args: InspectArgs = serde_json::from_value(request.args.clone())?;
-    if args.limit == 0 || args.limit > 10_000 || !args.encoding.eq_ignore_ascii_case("utf-8") { return Err(Failure::new("INVALID_ARGUMENT", "inspect supports UTF-8 and a bounded limit")); }
-    let path = target(&args.path, false)?;
-    if !path.is_file() { return Err(Failure::new("INVALID_ARGUMENT", "path is a directory; use ops_glob or ops_grep")); }
-    let (mut file, size) = open_bounded(&path)?;
-    if args.view == "hex" {
-        let (bytes, start, end) = read_hex_window(&mut file, size, args.offset, args.limit)?;
-        let text = bytes.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ");
-        return Ok(json!({"status":"completed","phase":"verify","changed":0,"matched":1,"skipped":start,"failed":0,"complete":end == size as usize,"omitted":(size as usize).saturating_sub(end),"items":[{"path":path,"view":"hex","offset":start,"text":text}]}));
-    }
-    if args.view != "text" { return Err(Failure::new("INVALID_ARGUMENT", "view must be text or hex")); }
-    let bytes = read_bounded(file)?;
-    let text = String::from_utf8(bytes).map_err(|_| Failure::new("INVALID_ARGUMENT", "file is not valid UTF-8"))?;
-    let total = text.lines().count();
-    let lines: Vec<_> = text.lines().enumerate().skip(args.offset.saturating_sub(1)).take(args.limit).map(|(i, line)| json!({"path":path,"line":i+1,"text":line})).collect();
-    Ok(result(lines, total, args.offset.saturating_sub(1), total, false))
-}
-fn glob(request: &Request) -> Result<Value> {
-    let args: GlobArgs = serde_json::from_value(request.args.clone())?;
-    if args.pattern.is_empty() || args.pattern.iter().all(|p| p.starts_with('!')) { return Err(Failure::new("INVALID_ARGUMENT", "pattern requires a positive glob")); }
-    let root = target(&args.path, false)?; if !root.is_dir() { return Err(Failure::new("INVALID_ARGUMENT", "glob path must be a directory")); }
-    let walked = walk(&root)?;
-    let patterns = GlobPatterns::new(&args.pattern);
-    let mut files: Vec<_> = walked.files.into_iter().filter(|f| patterns.matches(&root, f)).collect();
-    if args.sort == "modified" { files.sort_by_key(|f| std::cmp::Reverse(modified(f))); } else if !args.sort.is_empty() && args.sort != "path" { return Err(Failure::new("INVALID_ARGUMENT", "sort must be path or modified")); }
-    let output_mode = if args.output_mode.is_empty() { "paths" } else { args.output_mode.as_str() };
-    if output_mode != "paths" && output_mode != "details" { return Err(Failure::new("INVALID_ARGUMENT", "outputMode must be paths or details")); }
-    let total = files.len(); let selected: Vec<_> = files.into_iter().skip(args.offset).take(args.limit).map(|f| if output_mode == "paths" { json!(f) } else { let modified_at = modified(&f); json!({"path":f,"bytes":fs::symlink_metadata(&f).map(|m|m.len()).unwrap_or(0),"modified":modified_at}) }).collect();
-    Ok(result(selected, total, args.offset, total, walked.truncated))
-}
-fn grep(request: &Request) -> Result<Value> {
-    let args: GrepArgs = serde_json::from_value(request.args.clone())?;
-    if args.pattern.is_empty() || args.limit == 0 || args.limit > 10_000 { return Err(Failure::new("INVALID_ARGUMENT", "pattern and bounded limit are required")); }
-    if args.before_context > 32 || args.after_context > 32 { return Err(Failure::new("INVALID_ARGUMENT", "context is limited to 32 lines")); }
-    let regex = RegexBuilder::new(&args.pattern).case_insensitive(args.case_insensitive).multi_line(args.multiline).build().map_err(|e| Failure::new("INVALID_ARGUMENT", e))?;
-    let walked = files_for(&args.path, &args.glob)?;
-    let mut matches = Vec::new();
-    let (mut file_count, mut match_count, mut observed_items) = (0, 0, 0usize);
-    let page_end = args.offset.saturating_add(args.limit);
-    let summary = args.output_mode == "summary";
-    let file_items = matches!(args.output_mode.as_str(), "count" | "files_with_matches");
-    for file in walked.files {
-        let bytes = match read_bytes(&file) { Ok(bytes) => bytes, Err(_) => continue };
-        // Validate the entire file before accepting any hit, including a suffix
-        // beyond the requested page. NUL and BOM retain their previous meaning.
-        let text = match String::from_utf8(bytes) { Ok(text) => text, Err(_) => continue };
-        let hits = if summary || file_items {
-            let hits = text.lines().filter(|line| regex.is_match(line)).count();
-            if hits > 0 && file_items {
-                if observed_items >= args.offset && observed_items < page_end {
-                    matches.push(if args.output_mode == "count" {
-                        json!({"path":file,"count":hits})
-                    } else { json!({"path":file}) });
-                }
-                observed_items += 1;
-            }
-            hits
-        } else {
-            // Only context mode needs random access to lines. Neither mode
-            // retains hit positions, and only the selected page builds JSON.
-            let lines: Vec<_> = if args.before_context > 0 || args.after_context > 0 {
-                text.lines().collect()
-            } else { Vec::new() };
-            let mut hits = 0;
-            for (i, line) in text.lines().enumerate() {
-                if !regex.is_match(line) { continue; }
-                hits += 1;
-                if observed_items >= args.offset && observed_items < page_end {
-                    let content = if lines.is_empty() { line.to_owned() } else {
-                        let start = i.saturating_sub(args.before_context);
-                        let end = (i + args.after_context + 1).min(lines.len());
-                        lines[start..end].join("\n")
-                    };
-                    #[cfg(test)]
-                    metrics::record(|w| w.content_items += 1);
-                    matches.push(json!({"path":file,"line":if args.line_numbers {i+1} else {0},"text":content}));
-                }
-                observed_items += 1;
-            }
-            hits
-        };
-        if hits == 0 { continue; }
-        file_count += 1;
-        match_count += hits;
-        // Keep the previous per-file stopping boundary, based on observed
-        // results rather than the much smaller retained page.
-        if !summary && observed_items >= page_end { break; }
-    }
-    if args.output_mode == "summary" { return Ok(json!({"status":"completed","phase":"verify","changed":0,"matched":match_count,"skipped":0,"failed":0,"complete":!walked.truncated,"truncated":walked.truncated,"omitted":0,"files":file_count,"matches":match_count})); }
-    Ok(result(matches, observed_items, args.offset, match_count, walked.truncated))
-}
 fn replace(request: &Request) -> Result<Value> {
     if request.read_only { return Err(Failure::new("POLICY_DENIED", "replace is unavailable in read-only mode")); }
     let args: ReplaceArgs = serde_json::from_value(request.args.clone())?;
     if args.pattern.is_empty() || args.max_replacements == 0 || args.max_replacements > 100_000 { return Err(Failure::new("INVALID_ARGUMENT", "pattern and maxReplacements are required")); }
-    let walked = files_for(&args.path, &args.glob)?; let mut plans = Vec::new(); let mut total = 0usize;
+    let walked = files_for(&args.path, &args.glob, &mut Budget::unlimited())?; let mut plans = Vec::new(); let mut total = 0usize;
     for file in walked.files { let bytes=read_bytes(&file)?; let text=String::from_utf8(bytes.clone()).map_err(|_| Failure::new("INVALID_ARGUMENT", "replace only supports UTF-8 files"))?; let count=text.match_indices(&args.pattern).count(); if count>0 { total += count; plans.push((file, bytes, text, count)); } }
     if total > args.max_replacements { return Err(Failure::new("OUTPUT_LIMIT", "maxReplacements exceeded; no files were changed")); }
     let mut items=Vec::new(); for (file, original, text, count) in plans { let revision=hash_file(&file)?; let next=text.replace(&args.pattern,&args.replacement); items.push(json!({"path":file,"replacements":count,"revision":revision,"bytesBefore":original.len(),"bytesAfter":next.len()})); }

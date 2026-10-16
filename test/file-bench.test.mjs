@@ -12,6 +12,17 @@ await test('manual file benchmark helpers exist', () => {
 if (fixturesModule && measureModule) {
   const { createFixtures, cleanupOwned } = fixturesModule
   const { canonical, summarize, runWorker, compare, median } = measureModule
+  await test('PR2 migration checks reject count drift and non-prefix previews', () => {
+    assert.equal(typeof measureModule.validateFileMigration, 'function')
+    const before = { status: 'completed', complete: true, truncated: false, total: 1, omitted: 0, matched: 1, items: [{ path: 'a.txt', line: 1, text: 'hit 中文' }], nextOffset: 1 }
+    const after = { ...before, scanComplete: true, pageComplete: true, totalExact: true, stopReason: 'lineBytes', complete: false, truncated: true,
+      visitedEntries: 1, readBytes: 10, items: [{ path: 'a.txt', line: 1, text: 'hit', textTruncated: true, textBytes: Buffer.byteLength('hit 中文') }] }
+    assert.equal(measureModule.validateFileMigration(before, after), true)
+    assert.equal(measureModule.validateFileMigration(before, { ...after, matched: 0 }), false)
+    assert.equal(measureModule.validateFileMigration(before, { ...after, items: [{ ...after.items[0], text: 'different' }] }), false)
+    assert.equal(measureModule.validateFileMigration(before, { ...after, status: 'error' }), false)
+    assert.equal(measureModule.validateFileMigration(before, { ...after, scanComplete: false, totalExact: false }), false)
+  })
   await test('normalization preserves semantic fields and item ordering', () => {
     assert.equal(canonical({ b: 2, a: { elapsedMs: 1, text: 'x' } }), canonical({ a: { text: 'x', elapsedMs: 2 }, b: 2 }))
     assert.notEqual(canonical({ complete: true }), canonical({ complete: false }))
