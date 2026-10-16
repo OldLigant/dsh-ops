@@ -108,8 +108,19 @@ and removes empty owned directories. Unexpected data is left intact with an erro
 
 Run benchmark self-tests using `node test/run.mjs file-bench`. These do not add
 the full benchmark to `npm test`; only small harness correctness tests run there.
-Native resource regression assertions, `cargo test` integration and file
-deadline/completeness integration tests are follow-up work.
+`npm run verify` also runs the native resource regression assertions with
+`cargo test --locked --manifest-path native/Cargo.toml --target-dir out/_test/native`.
+It requires Cargo/Rust 1.88 or newer and a Windows x64 linker, in addition to the
+existing Node/runtime prerequisites. Test-only counters check metadata, body
+reads, glob parsing and page construction; they are absent from release builds.
+File deadline/completeness integration tests remain follow-up work.
+
+Hex inspection checks size on the safely opened handle, then reads only the
+requested window. Files over 32 MiB are still rejected. A short read or a changed
+size at the final handle check returns `REVISION_CONFLICT`. A stable size is not
+a content snapshot: same-size writes or changes after the final check can still
+occur. Offset retains its existing zero-based 16-byte units. Text inspection and
+grep still read and validate the entire accepted file, with a MAX+1 growth probe.
 
 Baseline build context and measured tables are recorded in
 [the Windows baseline evidence](results/2026-10-16-win32-x64.md).

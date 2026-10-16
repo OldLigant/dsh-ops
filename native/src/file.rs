@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::fs::{self};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt as WindowsMetadataExt;
@@ -15,6 +15,38 @@ use std::os::windows::fs::MetadataExt as WindowsMetadataExt;
 const MAX_ENTRIES: usize = 100_000;
 const MAX_DEPTH: usize = 128;
 const MAX_FILE_BYTES: u64 = 32 * 1024 * 1024;
+
+// Deterministic work assertions are compiled only into the native unit tests.
+#[cfg(test)]
+mod metrics {
+    use std::cell::RefCell;
+    use std::io::Read;
+    use std::path::PathBuf;
+    #[derive(Default, Debug)]
+    pub struct Work {
+        pub metadata_names: Vec<String>,
+        pub directories: Vec<PathBuf>,
+        pub read_bytes: usize,
+        pub content_items: usize,
+        pub hit_positions: usize,
+        pub glob_parses: usize,
+        pub path_splits: usize,
+    }
+    thread_local! { static WORK: RefCell<Work> = RefCell::new(Work::default()); }
+    pub fn record(f: impl FnOnce(&mut Work)) { WORK.with(|w| f(&mut w.borrow_mut())); }
+    pub fn take() -> Work { WORK.with(|w| std::mem::take(&mut *w.borrow_mut())) }
+    pub struct Reader<R>(pub R);
+    impl<R: Read> Read for Reader<R> {
+        fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
+            let count = self.0.read(bytes)?;
+            record(|w| w.read_bytes += count);
+            Ok(count)
+        }
+    }
+}
+#[cfg(test)]
+#[path = "file_tests.rs"]
+mod tests;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -103,9 +135,6 @@ fn target(raw: &str, _allow_missing: bool) -> Result<PathBuf> {
 fn relative_display(root: &Path, path: &Path) -> String {
     path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/")
 }
-fn hidden(path: &Path, root: &Path) -> bool {
-    path.strip_prefix(root).ok().into_iter().flat_map(|p| p.components()).any(|c| c.as_os_str().to_string_lossy().starts_with('.'))
-}
 fn host_link_or_reparse(path: &Path) -> bool {
     let Ok(metadata) = std::fs::symlink_metadata(path) else { return true };
     if metadata.file_type().is_symlink() { return true; }
@@ -123,14 +152,16 @@ fn walk(root: &Path) -> Result<WalkResult> {
     let directory = target.parent.open_dir_nofollow(&target.name)?;
     let mut files = Vec::new();
     let mut truncated = false;
-    visit_dir(root, root, directory, 0, &mut files, &mut truncated)?;
+    visit_dir(root, directory, 0, &mut files, &mut truncated)?;
     Ok(WalkResult { files, truncated })
 }
-fn visit_dir(root: &Path, display: &Path, directory: cap_std::fs::Dir, depth: usize, output: &mut Vec<PathBuf>, truncated: &mut bool) -> Result<()> {
+fn visit_dir(display: &Path, directory: cap_std::fs::Dir, depth: usize, output: &mut Vec<PathBuf>, truncated: &mut bool) -> Result<()> {
     if depth > MAX_DEPTH || output.len() >= MAX_ENTRIES {
         *truncated = true;
         return Ok(());
     }
+    #[cfg(test)]
+    metrics::record(|w| w.directories.push(display.to_path_buf()));
     let mut names = Vec::new();
     // A directory can change while it is being read. A broken child directory
     // is skipped, while failure to enumerate the requested root remains visible.
@@ -146,7 +177,12 @@ fn visit_dir(root: &Path, display: &Path, directory: cap_std::fs::Dir, depth: us
     }
     names.sort();
     for name in names {
-        if crate::file_path::validate_name(&name).is_err() || name == ".git" { continue; }
+        // These rules depend only on the name, for files and directories alike.
+        // The explicitly requested root is never subject to this child filter.
+        if name.starts_with('.') || matches!(name.as_str(), "node_modules" | "target")
+            || crate::file_path::validate_name(&name).is_err() { continue; }
+        #[cfg(test)]
+        metrics::record(|w| w.metadata_names.push(name.clone()));
         let metadata = match directory.symlink_metadata(&name) {
             Ok(metadata) => metadata,
             Err(_) => continue,
@@ -154,7 +190,6 @@ fn visit_dir(root: &Path, display: &Path, directory: cap_std::fs::Dir, depth: us
         if crate::file_path::link(&metadata) { continue; }
         let child = display.join(&name);
         if host_link_or_reparse(&child) { continue; }
-        if hidden(&child, root) || matches!(name.as_str(), ".git" | ".dsh-ops" | "node_modules" | "target" | ".venv") { continue; }
         if metadata.is_file() {
             if output.len() >= MAX_ENTRIES { *truncated = true; return Ok(()); }
             output.push(child);
@@ -162,19 +197,36 @@ fn visit_dir(root: &Path, display: &Path, directory: cap_std::fs::Dir, depth: us
         }
         if metadata.is_dir() {
             let Ok(child_dir) = directory.open_dir_nofollow(&name) else { continue };
-            visit_dir(root, &child, child_dir, depth + 1, output, truncated)?;
+            visit_dir(&child, child_dir, depth + 1, output, truncated)?;
             if *truncated && output.len() >= MAX_ENTRIES { return Ok(()); }
         }
     }
     Ok(())
 }
-fn positive_patterns(patterns: &[String]) -> impl Iterator<Item = &String> { patterns.iter().filter(|p| !p.starts_with('!')) }
-fn matches_any(root: &Path, file: &Path, patterns: &[String]) -> bool {
-    let name = relative_display(root, file);
-    let positives: Vec<_> = positive_patterns(patterns).collect();
-    let included = positives.is_empty() || positives.iter().any(|p| glob_match(p, &name));
-    let excluded = patterns.iter().filter_map(|p| p.strip_prefix('!')).any(|p| glob_match(p, &name));
-    included && !excluded
+struct GlobPattern<'a> { excluded: bool, segments: Vec<&'a str> }
+struct GlobPatterns<'a> { patterns: Vec<GlobPattern<'a>>, has_positive: bool }
+impl<'a> GlobPatterns<'a> {
+    fn new(patterns: &'a [String]) -> Self {
+        let patterns: Vec<_> = patterns.iter().map(|pattern| {
+            #[cfg(test)]
+            metrics::record(|w| w.glob_parses += 1);
+            let excluded = pattern.starts_with('!');
+            let pattern = pattern.strip_prefix('!').unwrap_or(pattern);
+            GlobPattern { excluded, segments: pattern.trim_start_matches("./").split('/').collect() }
+        }).collect();
+        let has_positive = patterns.iter().any(|p| !p.excluded);
+        Self { patterns, has_positive }
+    }
+    fn matches(&self, root: &Path, file: &Path) -> bool {
+        let name = relative_display(root, file);
+        #[cfg(test)]
+        metrics::record(|w| w.path_splits += 1);
+        let segments: Vec<_> = name.split('/').collect();
+        let included = !self.has_positive || self.patterns.iter()
+            .any(|p| !p.excluded && glob_segments(&p.segments, &segments));
+        included && !self.patterns.iter()
+            .any(|p| p.excluded && glob_segments(&p.segments, &segments))
+    }
 }
 fn files_for(path: &str, patterns: &[String]) -> Result<WalkResult> {
     let root = target(path, false)?;
@@ -182,17 +234,13 @@ fn files_for(path: &str, patterns: &[String]) -> Result<WalkResult> {
         return Ok(WalkResult { files: vec![root.clone()], truncated: false });
     }
     let walked = walk(&root)?;
+    let patterns = GlobPatterns::new(patterns);
     Ok(WalkResult {
         files: walked.files.into_iter()
-            .filter(|f| matches_any(&root, f, patterns))
+            .filter(|f| patterns.matches(&root, f))
             .collect(),
         truncated: walked.truncated,
     })
-}
-fn glob_match(pattern: &str, value: &str) -> bool {
-    let p: Vec<_> = pattern.trim_start_matches("./").split('/').collect();
-    let v: Vec<_> = value.split('/').collect();
-    glob_segments(&p, &v)
 }
 fn glob_segments(p: &[&str], v: &[&str]) -> bool {
     if p.is_empty() { return v.is_empty(); }
@@ -215,14 +263,46 @@ fn hash_file(path: &Path) -> Result<String> {
     let bytes = read_bytes(path)?;
     Ok(format!("{:x}", Sha256::digest(&bytes)))
 }
-fn read_bytes(path: &Path) -> Result<Vec<u8>> {
+fn open_bounded(path: &Path) -> Result<(cap_std::fs::File, u64)> {
     let raw = path.to_str().ok_or_else(|| Failure::new("INVALID_ARGUMENT", "Non-UTF8 path"))?;
     let target = crate::file_path::checked(raw)?;
-    let mut file = crate::file_path::read_file(&target)?;
+    let file = crate::file_path::read_file(&target)?;
+    let size = file.metadata()?.len();
+    if size > MAX_FILE_BYTES { return Err(Failure::new("OUTPUT_LIMIT", "File exceeds the bounded read budget")); }
+    Ok((file, size))
+}
+fn read_bounded(reader: impl Read) -> Result<Vec<u8>> {
+    #[cfg(test)]
+    let reader = metrics::Reader(reader);
     let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)?;
+    // A size check alone cannot bound I/O when the opened file grows.
+    reader.take(MAX_FILE_BYTES + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > MAX_FILE_BYTES { return Err(Failure::new("OUTPUT_LIMIT", "File exceeds the bounded read budget")); }
     Ok(bytes)
+}
+fn read_bytes(path: &Path) -> Result<Vec<u8>> {
+    let (file, _) = open_bounded(path)?;
+    read_bounded(file)
+}
+fn read_hex_window(file: &mut cap_std::fs::File, size: u64, offset: usize, limit: usize) -> Result<(Vec<u8>, usize, usize)> {
+    // Size is observed on the safely opened handle, not a content snapshot.
+    let start = offset.saturating_mul(16).min(size as usize);
+    let end = start.saturating_add(limit.saturating_mul(16)).min(size as usize);
+    file.seek(SeekFrom::Start(start as u64))?;
+    let mut bytes = vec![0; end - start];
+    #[cfg(test)]
+    let read = metrics::Reader(&mut *file).read_exact(&mut bytes);
+    #[cfg(not(test))]
+    let read = file.read_exact(&mut bytes);
+    if let Err(error) = read {
+        return Err(if error.kind() == std::io::ErrorKind::UnexpectedEof {
+            Failure::new("REVISION_CONFLICT", "File size changed during hex inspection")
+        } else { error.into() });
+    }
+    if file.metadata()?.len() != size {
+        return Err(Failure::new("REVISION_CONFLICT", "File size changed during hex inspection"));
+    }
+    Ok((bytes, start, end))
 }
 fn modified(path: &Path) -> u64 { fs::symlink_metadata(path).ok().map_or(0, |m| m.len()) }
 fn result(items: Vec<Value>, total: usize, offset: usize, matched: usize, truncated: bool) -> Value {
@@ -234,24 +314,26 @@ fn inspect(request: &Request) -> Result<Value> {
     if args.limit == 0 || args.limit > 10_000 || !args.encoding.eq_ignore_ascii_case("utf-8") { return Err(Failure::new("INVALID_ARGUMENT", "inspect supports UTF-8 and a bounded limit")); }
     let path = target(&args.path, false)?;
     if !path.is_file() { return Err(Failure::new("INVALID_ARGUMENT", "path is a directory; use ops_glob or ops_grep")); }
-    let bytes = read_bytes(&path)?;
-    if bytes.len() as u64 > MAX_FILE_BYTES { return Err(Failure::new("OUTPUT_LIMIT", "file exceeds the inspect size budget")); }
+    let (mut file, size) = open_bounded(&path)?;
     if args.view == "hex" {
-        let start = args.offset.saturating_mul(16).min(bytes.len()); let end = (start + args.limit * 16).min(bytes.len());
-        let text = bytes[start..end].iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ");
-        return Ok(json!({"status":"completed","phase":"verify","changed":0,"matched":1,"skipped":start,"failed":0,"complete":end == bytes.len(),"omitted":bytes.len().saturating_sub(end),"items":[{"path":path,"view":"hex","offset":start,"text":text}]}));
+        let (bytes, start, end) = read_hex_window(&mut file, size, args.offset, args.limit)?;
+        let text = bytes.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ");
+        return Ok(json!({"status":"completed","phase":"verify","changed":0,"matched":1,"skipped":start,"failed":0,"complete":end == size as usize,"omitted":(size as usize).saturating_sub(end),"items":[{"path":path,"view":"hex","offset":start,"text":text}]}));
     }
     if args.view != "text" { return Err(Failure::new("INVALID_ARGUMENT", "view must be text or hex")); }
+    let bytes = read_bounded(file)?;
     let text = String::from_utf8(bytes).map_err(|_| Failure::new("INVALID_ARGUMENT", "file is not valid UTF-8"))?;
+    let total = text.lines().count();
     let lines: Vec<_> = text.lines().enumerate().skip(args.offset.saturating_sub(1)).take(args.limit).map(|(i, line)| json!({"path":path,"line":i+1,"text":line})).collect();
-    Ok(result(lines, text.lines().count(), args.offset.saturating_sub(1), text.lines().count(), false))
+    Ok(result(lines, total, args.offset.saturating_sub(1), total, false))
 }
 fn glob(request: &Request) -> Result<Value> {
     let args: GlobArgs = serde_json::from_value(request.args.clone())?;
     if args.pattern.is_empty() || args.pattern.iter().all(|p| p.starts_with('!')) { return Err(Failure::new("INVALID_ARGUMENT", "pattern requires a positive glob")); }
     let root = target(&args.path, false)?; if !root.is_dir() { return Err(Failure::new("INVALID_ARGUMENT", "glob path must be a directory")); }
     let walked = walk(&root)?;
-    let mut files: Vec<_> = walked.files.into_iter().filter(|f| matches_any(&root, f, &args.pattern)).collect();
+    let patterns = GlobPatterns::new(&args.pattern);
+    let mut files: Vec<_> = walked.files.into_iter().filter(|f| patterns.matches(&root, f)).collect();
     if args.sort == "modified" { files.sort_by_key(|f| std::cmp::Reverse(modified(f))); } else if !args.sort.is_empty() && args.sort != "path" { return Err(Failure::new("INVALID_ARGUMENT", "sort must be path or modified")); }
     let output_mode = if args.output_mode.is_empty() { "paths" } else { args.output_mode.as_str() };
     if output_mode != "paths" && output_mode != "details" { return Err(Failure::new("INVALID_ARGUMENT", "outputMode must be paths or details")); }
@@ -263,13 +345,61 @@ fn grep(request: &Request) -> Result<Value> {
     if args.pattern.is_empty() || args.limit == 0 || args.limit > 10_000 { return Err(Failure::new("INVALID_ARGUMENT", "pattern and bounded limit are required")); }
     if args.before_context > 32 || args.after_context > 32 { return Err(Failure::new("INVALID_ARGUMENT", "context is limited to 32 lines")); }
     let regex = RegexBuilder::new(&args.pattern).case_insensitive(args.case_insensitive).multi_line(args.multiline).build().map_err(|e| Failure::new("INVALID_ARGUMENT", e))?;
-    let walked = files_for(&args.path, &args.glob)?; let mut matches = Vec::new(); let mut file_count = 0; let mut match_count = 0;
-    for file in walked.files { let bytes = match read_bytes(&file) { Ok(bytes) => bytes, Err(_) => continue }; if bytes.len() as u64 > MAX_FILE_BYTES { continue; } let text = match String::from_utf8(bytes) { Ok(v) => v, Err(_) => continue }; let lines: Vec<_> = text.lines().collect(); let mut line_hits = Vec::new(); for (i, line) in lines.iter().enumerate() { if regex.is_match(line) { line_hits.push(i); } } if line_hits.is_empty() { continue; } file_count += 1; match_count += line_hits.len();
-        match args.output_mode.as_str() { "files_with_matches" => matches.push(json!({"path":file})), "count" => matches.push(json!({"path":file,"count":line_hits.len()})), _ => { for i in line_hits { let start=i.saturating_sub(args.before_context); let end=(i+args.after_context+1).min(lines.len()); matches.push(json!({"path":file,"line":if args.line_numbers {i+1} else {0},"text":lines[start..end].join("\n")})); } } }
-        if args.output_mode != "summary" && matches.len() >= args.offset + args.limit { break; }
+    let walked = files_for(&args.path, &args.glob)?;
+    let mut matches = Vec::new();
+    let (mut file_count, mut match_count, mut observed_items) = (0, 0, 0usize);
+    let page_end = args.offset.saturating_add(args.limit);
+    let summary = args.output_mode == "summary";
+    let file_items = matches!(args.output_mode.as_str(), "count" | "files_with_matches");
+    for file in walked.files {
+        let bytes = match read_bytes(&file) { Ok(bytes) => bytes, Err(_) => continue };
+        // Validate the entire file before accepting any hit, including a suffix
+        // beyond the requested page. NUL and BOM retain their previous meaning.
+        let text = match String::from_utf8(bytes) { Ok(text) => text, Err(_) => continue };
+        let hits = if summary || file_items {
+            let hits = text.lines().filter(|line| regex.is_match(line)).count();
+            if hits > 0 && file_items {
+                if observed_items >= args.offset && observed_items < page_end {
+                    matches.push(if args.output_mode == "count" {
+                        json!({"path":file,"count":hits})
+                    } else { json!({"path":file}) });
+                }
+                observed_items += 1;
+            }
+            hits
+        } else {
+            // Only context mode needs random access to lines. Neither mode
+            // retains hit positions, and only the selected page builds JSON.
+            let lines: Vec<_> = if args.before_context > 0 || args.after_context > 0 {
+                text.lines().collect()
+            } else { Vec::new() };
+            let mut hits = 0;
+            for (i, line) in text.lines().enumerate() {
+                if !regex.is_match(line) { continue; }
+                hits += 1;
+                if observed_items >= args.offset && observed_items < page_end {
+                    let content = if lines.is_empty() { line.to_owned() } else {
+                        let start = i.saturating_sub(args.before_context);
+                        let end = (i + args.after_context + 1).min(lines.len());
+                        lines[start..end].join("\n")
+                    };
+                    #[cfg(test)]
+                    metrics::record(|w| w.content_items += 1);
+                    matches.push(json!({"path":file,"line":if args.line_numbers {i+1} else {0},"text":content}));
+                }
+                observed_items += 1;
+            }
+            hits
+        };
+        if hits == 0 { continue; }
+        file_count += 1;
+        match_count += hits;
+        // Keep the previous per-file stopping boundary, based on observed
+        // results rather than the much smaller retained page.
+        if !summary && observed_items >= page_end { break; }
     }
     if args.output_mode == "summary" { return Ok(json!({"status":"completed","phase":"verify","changed":0,"matched":match_count,"skipped":0,"failed":0,"complete":!walked.truncated,"truncated":walked.truncated,"omitted":0,"files":file_count,"matches":match_count})); }
-    let total=matches.len(); Ok(result(matches.into_iter().skip(args.offset).take(args.limit).collect(), total, args.offset, match_count, walked.truncated))
+    Ok(result(matches, observed_items, args.offset, match_count, walked.truncated))
 }
 fn replace(request: &Request) -> Result<Value> {
     if request.read_only { return Err(Failure::new("POLICY_DENIED", "replace is unavailable in read-only mode")); }
