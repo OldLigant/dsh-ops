@@ -20,6 +20,7 @@ out/_test/
 
 # Local cross-session handoff, project context and architecture notes
 memorybank/
+docs/superpowers/
 
 # Editor and OS noise
 .DS_Store

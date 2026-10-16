@@ -1,4 +1,4 @@
-# Manual file-tool benchmark (issue #87, PR 0)
+# Manual file-tool benchmark (issue #87)
 
 Requires Node `^22.19 || >=24` and two explicitly selected **release** workers.
 Uses only Node built-ins; does not provision a worker, resolve a packaged runtime,
@@ -37,8 +37,8 @@ full run much longer than a few seconds. There is no total-run deadline.
 
 The script prints both SHA-256 hashes. Hashes identify bytes; they cannot prove
 release profile or source provenance. Record source commit, build command and
-toolchain alongside the table. PR 0 should compare the preserved baseline with
-the identical release build to establish repeatability, not claim a speedup.
+toolchain alongside the table. Compare the preserved baseline with the identical
+release build first to establish repeatability before measuring changes.
 
 ## Fixtures and queries
 
@@ -87,7 +87,7 @@ Every repetition and warmup is checked for output stability.
   this is boundary evidence, with no speedup or successful-call median.
   Its timings remain available as `rejectedRunsMs` / `rejectionMedianMs`.
 - `EXPECTED_DIFFERENCE`: a query-specific reason in `EXPECTED_DIFFERENCES` in
-  `measure.mjs`; still no speedup. The allowlist is empty in PR 0. A future PR
+  `measure.mjs`; still no speedup. The allowlist is initially empty. A future PR
   must document the semantic migration and add its own correctness tests.
 
 Any unexpected failure/difference exits nonzero after saving the report. Identical
@@ -108,26 +108,8 @@ and removes empty owned directories. Unexpected data is left intact with an erro
 
 Run benchmark self-tests using `node test/run.mjs file-bench`. These do not add
 the full benchmark to `npm test`; only small harness correctness tests run there.
-Native resource regression assertions and `cargo test` integration belong to PR 1;
-file deadline/completeness integration tests belong to PR 2.
+Native resource regression assertions, `cargo test` integration and file
+deadline/completeness integration tests are follow-up work.
 
 Baseline build context and measured tables are recorded in
 [the Windows baseline evidence](results/2026-10-16-win32-x64.md).
-
-## Upstream audit before implementation (2026-10-16)
-
-Local main and remote `T-Auto/dsh-ops` main were both
-`6a7a4c79847705e7025b0467c03f005020efa263`; checkout was clean.
-
-- [#81](https://github.com/T-Auto/dsh-ops/pull/81) touches native file results,
-  output truncation, hex offsets, multiline, credential exclusions and platforms.
-  Recheck before PR 1/2; do not blindly whitelist its output changes.
-- [#99](https://github.com/T-Auto/dsh-ops/pull/99) changes host session file fences.
-  Direct worker measurements do not constitute host permission testing.
-- [#79](https://github.com/T-Auto/dsh-ops/pull/79) adds acceptance/platform probes;
-  this manual performance comparison complements those correctness checks.
-- [#95](https://github.com/T-Auto/dsh-ops/pull/95),
-  [#90](https://github.com/T-Auto/dsh-ops/pull/90) and other platform PRs touch
-  package.json; the only script added here is `bench:files`.
-- [#102](https://github.com/T-Auto/dsh-ops/pull/102) proposes contribution/gate
-  documentation; this PR does not claim GitHub Actions is running.
