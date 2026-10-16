@@ -1,0 +1,80 @@
+{
+  "createdAt": "2026-10-16T03:14:26.780Z",
+  "seed": 870016,
+  "scale": 0.1,
+  "rounds": 5,
+  "warmups": 1,
+  "cache": "warm",
+  "measurement": "direct spawn-to-close",
+  "query": {
+    "fixture": "edge-text",
+    "id": "utf8-boundary",
+    "tool": "grep",
+    "args": {
+      "path": "D:\\dsh\\dev\\dsh-ops\\out\\_test\\pr2\\bench-fixtures\\dsh-ops-file-bench-Ywsgfh\\edge-text\\boundary.txt",
+      "pattern": "needle",
+      "outputMode": "content",
+      "limit": 1
+    }
+  },
+  "comparison": {
+    "state": "EXPECTED_DIFFERENCE",
+    "sameAsBaseline": false,
+    "expectedDifference": "PR2 explicit completeness; multibyte matching unchanged",
+    "speedup": null
+  },
+  "engines": {
+    "baseline": {
+      "binary": "out/_test/pr2/binaries/pr1-2d8e646.exe",
+      "binarySha256": "3a84bbebb9811a574e030c4a65c381952f17e4f1f7d05cdde9216700869a2d27"
+    },
+    "candidate": {
+      "binary": "D:/dsh/dev/_test/issue-87/build/release/dsh-ops-worker.exe",
+      "binarySha256": "9fd982f16eedd534a3297f5666aa725007d7b96d12fbd25554ef11bff18cefbf"
+    }
+  },
+  "summaries": {
+    "baseline": {
+      "runsMs": [
+        39.02379999999994,
+        41.343200000000024,
+        43.9985999999999,
+        58.637300000000096,
+        48.55160000000001
+      ],
+      "medianMs": 43.9985999999999,
+      "rejectedRunsMs": [],
+      "rejectionMedianMs": null,
+      "timeouts": 0,
+      "errors": 0,
+      "warmupState": "OK",
+      "outputBytes": 4413,
+      "resultHash": "c9808e4ba23e02f1d1389db65d9b3411b3f8b412407502824e4acbf24d48f31d",
+      "unstable": false,
+      "eligible": true,
+      "nativeErrors": [],
+      "failures": []
+    },
+    "candidate": {
+      "runsMs": [
+        40.10239999999999,
+        39.4547,
+        56.04470000000015,
+        61.522199999999884,
+        41.62130000000002
+      ],
+      "medianMs": 41.62130000000002,
+      "rejectedRunsMs": [],
+      "rejectionMedianMs": null,
+      "timeouts": 0,
+      "errors": 0,
+      "warmupState": "OK",
+      "outputBytes": 4557,
+      "resultHash": "eba68a6d27dc4053f64a2f682d6bee85c8783ceb6257c78c2c2acd5c93cb616a",
+      "unstable": false,
+      "eligible": true,
+      "nativeErrors": [],
+      "failures": []
+    }
+  }
+}

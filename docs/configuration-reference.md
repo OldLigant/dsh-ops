@@ -110,7 +110,7 @@ Long paths that cannot fit even one position return `OUTPUT_LIMIT`, rather than
 a successful empty page repeating the same offset. Search pages stopped by
 deadline/read/entry budgets do not provide a resumable `nextOffset`; narrow the
 scope or deliberately change the component budget. Ordinary page/output stops
-advance by the number of returned items. Enumeration remains eager until the
+advance by the number of returned items (hex uses 16-byte rows). Enumeration remains eager until the
 directory-handle work, so an enumeration budget may stop before any file results.
 
 The existing 128 KiB stdout capture ceiling is retained. Budgets cover the value
@@ -120,6 +120,7 @@ budget. Full reads validate all accepted bytes; same-size concurrent file writes
 are not a snapshot guarantee.
 
 ### Other configuration keys
+
 - `required`: whether to reject activation when the runtime is unavailable.
 - `shellPolicy`: defaults to `advise`; `deny-host-shell` rejects host shells in `deniedHostTools` (default `[pwsh, bash, pwsh_persistent]`). This also disables third-layer pwsh; enable cautiously.
 - `allowSystemShellFallback`: defaults to `false`. Without a bundled/provisioned bash, do not discover system PATH or well-known installations; background commands cannot bypass this through FastCtx discovery either. Explicit `true` opts into an unpinned system bash that the operator must trust and maintain. Explicit `bashPath` is a separate operator selection, not an automatic fallback. See the update configuration modification area in the [usage guide](usage.md) for the first-start migration.

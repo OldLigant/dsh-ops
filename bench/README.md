@@ -131,3 +131,5 @@ Baseline build context and measured tables are recorded in
 [the Windows baseline evidence](results/2026-10-16-win32-x64.md).
 PR 1 results and resource assertions are recorded in
 [the Windows PR 1 evidence](results/2026-10-16-win32-x64-pr1-scale01.md).
+Combined PR 1+2 budget/contract evidence, including original and PR 1 comparisons,
+is recorded in [the Windows combined evidence](results/2026-10-16-win32-x64-pr1-pr2-scale01.md).

@@ -38,14 +38,14 @@ this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Check the safely opened file's size before reading, and cap full reads at
   32 MiB plus one growth probe byte. Oversize files no longer require a full read.
 - Count grep summary/count results without retaining hit positions; build content
-  JSON and context only for the requested page, retaining existing observed totals
-  and per-file stop boundaries. Inspect text counts total lines once.
+  JSON and context only for the requested page, retaining observed matching-line
+  counts and per-file stop boundaries. Inspect text counts total lines once.
 - Inspect hex reads only the requested window after the size check. Short reads
   or observed size changes return `REVISION_CONFLICT`; stable-input output and
   zero-based 16-byte offsets are unchanged. This is not a content snapshot.
 - Run native resource regression tests as part of `npm run verify`, using the
   explicit `out/_test/native` build directory. Cargo/Rust 1.88+ and a Windows x64
-  linker are required. Deadlines and completeness-contract changes are separate.
+  linker are required. The budget/completeness stage is described above.
 
 ### Payload trust
 
