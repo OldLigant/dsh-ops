@@ -351,3 +351,36 @@ fn io_errors_stop_with_unconfirmed_counts_and_reads_stay_bounded() {
     assert_eq!(result["scanComplete"], false);
     assert!(result.get("total").is_none());
 }
+
+#[test]
+fn hex_completeness_and_reasons_follow_rows_instead_of_composite_items() {
+    let mut f = Fixture::new();
+    let path = f.write("hex.bin", vec![0u8; 16 * 1000]);
+    for (limits, reason) in [
+        (json!({"maxOutputBytes":2048,"maxLineBytes":16384}), "outputBytes"),
+        (json!({"maxOutputBytes":49152,"maxLineBytes":96}), "lineBytes"),
+    ] {
+        let page = budget_call(&f, "inspect_local_file", json!({"path":path,"view":"hex","offset":0,"limit":1000}), limits);
+        assert_eq!(page["scanComplete"], true);
+        assert_eq!(page["pageComplete"], false);
+        assert_eq!(page["complete"], false);
+        assert_eq!(page["stopReason"], reason);
+        assert!(page["nextOffset"].as_u64().unwrap() < 1000);
+    }
+    let path = f.write("short.bin", vec![0u8; 31]);
+    let full = budget_call(&f, "inspect_local_file", json!({"path":path,"view":"hex","offset":0,"limit":1000}), json!({}));
+    assert_eq!(full["complete"], true);
+    assert_eq!(full["pageComplete"], true);
+    assert_eq!(full["stopReason"], Value::Null);
+    assert_eq!(full["omitted"], 0);
+    assert_eq!(full["nextOffset"], 2);
+    let page = budget_call(&f, "inspect_local_file", json!({"path":path,"view":"hex","offset":0,"limit":1}), json!({}));
+    assert_eq!(page["complete"], false);
+    assert_eq!(page["pageComplete"], true);
+    assert_eq!(page["stopReason"], "pageLimit");
+    let too_small: Request = serde_json::from_value(json!({
+        "root":f.root,"scope":"hex-line-budget","read_only":true,"tool":"inspect_local_file",
+        "args":{"path":path,"view":"hex","offset":0,"limit":1},"file_budget":{"maxLineBytes":16},
+    })).unwrap();
+    assert_eq!(dispatch(&too_small).unwrap_err().code, "OUTPUT_LIMIT");
+}

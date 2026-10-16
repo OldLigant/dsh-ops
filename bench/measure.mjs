@@ -64,8 +64,15 @@ export function validateFileMigration(baseline, candidate) {
     delete before.total; delete before.omitted
   }
   if (previewed && candidate.complete !== false) return false
-  if (!previewed && candidate.truncated !== baseline.truncated) return false
-  if (before.items?.[0]?.view === 'hex') { delete after.total; delete after.nextOffset }
+  const hex = before.items?.[0]?.view === 'hex'
+  if (!previewed && (hex ? Boolean(candidate.truncated) !== Boolean(baseline.truncated) : candidate.truncated !== baseline.truncated)) return false
+  if (hex) {
+    const item = before.items[0]
+    const bytes = item.text.length === 0 ? 0 : (item.text.length + 1) / 3
+    if (candidate.total !== Math.ceil((item.offset + bytes + before.omitted) / 16)
+      || candidate.nextOffset !== Math.ceil((item.offset + bytes) / 16)) return false
+    delete after.total; delete after.nextOffset
+  }
   for (const value of [before, after]) {
     for (const key of ['complete', 'truncated', 'scanComplete', 'pageComplete', 'totalExact', 'totalLowerBound', 'stopReason', 'visitedEntries', 'readBytes']) delete value[key]
   }

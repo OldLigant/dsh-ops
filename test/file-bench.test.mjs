@@ -23,6 +23,15 @@ if (fixturesModule && measureModule) {
     assert.equal(measureModule.validateFileMigration(before, { ...after, status: 'error' }), false)
     assert.equal(measureModule.validateFileMigration(before, { ...after, scanComplete: false, totalExact: false }), false)
   })
+  await test('hex migration accepts only the exact added row total and cursor', () => {
+    const before = { status: 'completed', complete: false, phase: 'verify', changed: 0, matched: 1, failed: 0, skipped: 16, omitted: 3,
+      items: [{ path: 'a.bin', view: 'hex', offset: 16, text: '00 01' }] }
+    const after = { ...before, total: 2, nextOffset: 2, scanComplete: true, totalExact: true, pageComplete: true,
+      stopReason: 'pageLimit', truncated: false, readBytes: 2, visitedEntries: 1 }
+    assert.equal(measureModule.validateFileMigration(before, after), true)
+    assert.equal(measureModule.validateFileMigration(before, { ...after, total: 3 }), false)
+    assert.equal(measureModule.validateFileMigration(before, { ...after, nextOffset: 3 }), false)
+  })
   await test('normalization preserves semantic fields and item ordering', () => {
     assert.equal(canonical({ b: 2, a: { elapsedMs: 1, text: 'x' } }), canonical({ a: { text: 'x', elapsedMs: 2 }, b: 2 }))
     assert.notEqual(canonical({ complete: true }), canonical({ complete: false }))

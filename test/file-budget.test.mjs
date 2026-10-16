@@ -9,6 +9,7 @@ import { definition, OUTPUT } from '../lib/file/contract.js'
 import { NativeFileTools } from '../lib/file/runtime.js'
 import { invoke, resolveWorker } from '../lib/file/worker.js'
 import { assert, test, report, withTempDir } from './lib/harness.mjs'
+import { bootHost, shutdown } from './lib/host.mjs'
 
 const exec = signal => ({ agent: { session: { id: 'file-budget-test', header: { cwd: process.cwd() } } }, signal })
 function controlled() {
@@ -43,6 +44,14 @@ await test('definitions declare deadline and expose scan/page/count semantics', 
     assert.equal(definition(name, () => {}, { timeoutMs: 200 }).timeoutMs, 200)
   }
   for (const key of ['scanComplete', 'pageComplete', 'totalExact', 'totalLowerBound', 'stopReason']) assert.ok(OUTPUT.properties[key], key)
+})
+
+await test('all file definitions register with the real DSH schema validator', async () => {
+  const { ctx, tools } = await bootHost()
+  try {
+    for (const name of ['grep', 'glob', 'inspect_local_file', 'replace']) tools.register(definition(name, async () => ({})))
+    assert.equal(tools.schemas().length, 4)
+  } finally { await shutdown(ctx) }
 })
 
 await test('unload awaits actual call completion and managed range exit', async () => {
@@ -167,7 +176,8 @@ await test('real worker soft deadline and zero-hit entry budget return incomplet
 await test('real host hard deadline reaps its worker and a subsequent query succeeds', async () => {
   await withTempDir('file-budget-hard', root => realHost(root, async c => {
     fs.writeFileSync(path.join(root, 'a.txt'), 'hit\n')
-    const surface = new NativeFileTools({ ctx: c.ctx, config: { workerPath: worker, fileBudgets: { timeoutMs: 200 } } })
+    // Leave room for ordinary Windows process startup/exit under build load.
+    const surface = new NativeFileTools({ ctx: c.ctx, config: { workerPath: worker, fileBudgets: { timeoutMs: 1000 } } })
     await surface.start()
     c.setStuck(true)
     const result = await surface.call('grep', { pattern: 'hit' }, c.execution())

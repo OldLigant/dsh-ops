@@ -183,9 +183,9 @@ pub(super) fn inspect(request: &Request) -> Result<Value> {
             ));
         }
         let path_bytes = serde_json::to_vec(&path)?.len();
-        let rows = (page.remaining().saturating_sub(path_bytes + 256) / 48)
-            .min(budget.limits.max_line_bytes / 48)
-            .max(1);
+        let output_rows = page.remaining().saturating_sub(path_bytes + 256) / 48;
+        let line_rows = budget.limits.max_line_bytes.saturating_add(1) / 48;
+        let rows = output_rows.min(line_rows).max(1);
         let count = rows.min(args.limit);
         let start = args.offset.saturating_mul(16).min(size as usize);
         let end = start.saturating_add(count * 16).min(size as usize);
@@ -203,16 +203,27 @@ pub(super) fn inspect(request: &Request) -> Result<Value> {
             .map(|b| format!("{b:02x}"))
             .collect::<Vec<_>>()
             .join(" ");
+        if text.len() > budget.limits.max_line_bytes {
+            return Err(Failure::new(
+                "OUTPUT_LIMIT",
+                "One hex row exceeds maxLineBytes; increase the line budget",
+            ));
+        }
         page.push(json!({"path":path,"view":"hex","offset":start,"text":text}));
         if count < args.limit && end < size as usize {
-            page.preview = Some("outputBytes");
+            page.preview = Some(if line_rows <= output_rows {
+                "lineBytes"
+            } else {
+                "outputBytes"
+            });
         }
+        let preview = page.preview;
         // Hex pagination units remain 16-byte offsets, distinct from text lines.
         let mut result = finish(
             page,
             (size as usize).div_ceil(16),
             args.offset,
-            1,
+            args.limit,
             1,
             true,
             &mut budget,
@@ -224,6 +235,12 @@ pub(super) fn inspect(request: &Request) -> Result<Value> {
         result["omitted"] = json!((size as usize).saturating_sub(end));
         result["nextOffset"] = json!(end.div_ceil(16));
         result["complete"] = json!(end == size as usize);
+        result["pageComplete"] = json!(end == size as usize || end - start >= args.limit * 16);
+        result["stopReason"] = json!(if end == size as usize {
+            None
+        } else {
+            preview.or(Some("pageLimit"))
+        });
         return Ok(result);
     }
     let bytes = match read_file(&path, &mut budget)? {
