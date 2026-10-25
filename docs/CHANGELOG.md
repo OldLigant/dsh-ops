@@ -54,6 +54,9 @@ this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - 不再在每次 PTC 发布时重新探测全部已跟踪 agent。`ptc` 与 `discovery` 都在每次 reconcile 里对每个 agent 完整装配一次提示词，因此新建一个会话要付出所有仍在跟踪的会话的代价：Windows x64、38 个 bundle 下，同一个 `session/create` 八轮为 264 / 308 / 396 / 475 / 590 / 681 / 748 / 947 ms。现在每个 agent 按自己发布的工具名缓存呈现判定、只有该集合变化时才重新探测，`reconcile` 接受「本次真正受影响的 agent」，每次发布的工具快照只读工具名而不再为每个工具重建一次 scope 视图。同样八轮实测为 195 / 226 / 270 / 260 / 295 / 329 / 358 / 373 ms（#333、#359）。
 - Run CI on every PR target branch, including stacked feature branches; provide a checked ruleset payload and explicit administrator acceptance steps for required checks (#303). Repository enforcement still requires admin application.
 - CI 覆盖所有 PR 目标分支（包括堆叠功能分支），提供校验过的规则 JSON 与管理员验收步骤（#303）；仓库强制保护仍需管理员实际应用。
+- Preserve BM-05's failed read-control result and original error instead of crashing on missing `items`. Reports retain the actual failure when JavaScript and worker builds do not match.
+- BM-05 在读取控制失败时保留原始结果和错误，不再因缺少 `items` 崩溃；JavaScript 与 worker 构建不匹配时，报告保留真正的失败原因。
+
 - Add repository-only real-corpus `bench calls` and `materialize` commands. Compare official search tools with OPS, or alternate two OPS builds in one process with `--baseline-plugin-root` / `--plugin-root`; record corpus identity, coverage, per-arm build hashes and call timings. Upstream and fork use the same harness; elapsed time remains human evidence, never a CI performance gate.
 - 新增仅在仓库内使用的真实语料 `bench calls` 与 `materialize`：比较官方搜索工具和 OPS，或用 `--baseline-plugin-root` / `--plugin-root` 在同一进程中交替测两个 OPS 构建；记录语料身份、覆盖率、各臂构建哈希和调用耗时。上游与 fork 共用一套测试，耗时仍只作人类证据，不作为 CI 性能门禁。
 
