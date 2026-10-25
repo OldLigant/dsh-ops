@@ -82,3 +82,14 @@ evidence (call error, input mutation, shape or identity mismatch), and `2` means
 arguments or missing inputs/builds. None means “the candidate is slower”. To validate
 the setup, first point both version arms at the same build; this is an A/A check, not
 evidence of a speedup.
+
+## CI coverage
+
+The default test inventory includes `bench-calls`, `bench-call-versions` and
+`bench-gates-errors`: deterministic fixtures, argument/identity checks, separate plugin
+loading, execution order and honest error reporting. They assert no timing or model cost.
+The optional `workflow_dispatch` input `bench=true` also runs `bench/calls/smoke.mjs`
+on Linux, Windows and macOS: two tiny text files, official tools and the same staged OPS
+build on both sides, 12 measured calls. It checks successful dispatch and same-build
+output-size/coverage consistency, uploads `calls.json`, and remains non-blocking.
+Installed real corpora and cross-version performance measurements remain manual evidence.

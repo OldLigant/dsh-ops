@@ -7,6 +7,9 @@ this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Extend the opt-in three-platform bench smoke with 12 real-host calls over a tiny isolated corpus, using the same OPS build in both version arms and uploading `calls.json`. Assert dispatch, errors and output consistency, never elapsed time; default performance gates remain unchanged.
+- 可选三平台 bench smoke 新增小型隔离语料上的 12 次真实 host 调用，两版本臂使用同一 OPS 构建并上传 `calls.json`；仅断言调用、错误及输出一致性，不裁决耗时，不改变默认性能门禁。
+
 - Add candidate-only benchmark component switches with conservative patch editing, composed-config verification and a bounded readiness turn. Archive effective switches, show them in reports, and reject comparisons across different candidate switch sets (#296).
 - 为 benchmark 增加仅作用于 candidate 的组件开关，保守编辑补丁并核验合成配置及有时限的就绪 turn；归档实际开关、在报告中展示，并拒绝不同 candidate 开关集的混配（#296）。
 
