@@ -22,7 +22,7 @@ The manual `Opt-in OPS acceptance benchmarks` workflow runs the same command on 
 The candidate defaults to this checkout's `lib/` and `native/target/release/dsh-ops-worker`
 (append `.exe` on Windows). Rebuilding JavaScript alone does not rebuild that executable.
 After a tool rename, a stale worker can return `INVALID_ARGUMENT: Unknown capability`;
-for example, a worker built before `read_many` became `read_files` cannot serve the new call.
+for example, a worker built before the current `read_files` name cannot serve that call.
 Build both from the same checkout, or select a matching binary explicitly with `--worker`.
 For isolated verification, use Cargo's `--target-dir <temporary-build-dir>` and pass that
 directory's worker to the gate. A debug build can verify behavior but is not timing evidence.
