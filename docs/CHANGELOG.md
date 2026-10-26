@@ -39,6 +39,9 @@ this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Retry the macOS APFS clone without `CLONE_ACL` on macOS 12 after the existing extended-ACL check, re-checking the source before writing; `replace`, `copy` and overwrite writes now work on macOS 12, while a source with an extended ACL still fails closed (#371 follow-up).
+- macOS 12 在既有的扩展 ACL 检查之后以不带 `CLONE_ACL` 的 APFS clone 重试，并在写入前复查源文件；`replace`、`copy` 与覆盖写现在可用，带扩展 ACL 的源文件仍然 fail closed（#371 后续）。
+
 - Add candidate-only benchmark component switches with conservative patch editing, composed-config verification and a bounded readiness turn. Archive effective switches, show them in reports, and reject comparisons across different candidate switch sets (#296).
 - 为 benchmark 增加仅作用于 candidate 的组件开关，保守编辑补丁并核验合成配置及有时限的就绪 turn；归档实际开关、在报告中展示，并拒绝不同 candidate 开关集的混配（#296）。
 
