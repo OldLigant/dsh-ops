@@ -23,7 +23,7 @@
 
 OPS 为 DSH 增加有界文件与文档工具。Native 模式返回紧凑、带行号的文本；PTC 代码从同一个按调用启动的 Rust worker 获取类型化 Outcome。宿主集成使用严格 TypeScript，编译后保持已有 JavaScript 包路径。
 
-支持：Windows x64、Linux x64，以及 macOS 13+ 的 Apple Silicon 与 Intel（`darwin-arm64`、`darwin-x64`）。见 [macOS](docs/macos.zh.md)。
+支持：Windows x64、Linux x64，以及 macOS 12+ 的 Apple Silicon 与 Intel（`darwin-arm64`、`darwin-x64`）。见 [macOS](docs/macos.zh.md)。
 
 > [!IMPORTANT]
 > 本分支是 **0.4.0 发布候选**，尚未发布。已批准的验收范围为：BM-01 相比 OPS 0.3.x 输出减少至少 40%，官方读取另列对照；BM-03 对文件/发现 schema 执行 400 token 上限，同时保留 Bash 启动常驻并单列完整总数。最终实测证据与功能 CI 缺一不可。
