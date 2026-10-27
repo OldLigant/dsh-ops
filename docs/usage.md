@@ -64,8 +64,9 @@ Then point a mode row at a bash the machine already has:
     bashPath: /opt/homebrew/bin/bash   # Intel Homebrew: /usr/local/bin/bash
 ```
 
-`/bin/bash` also works. macOS 12 is not fully supported: the write path needs
-`CLONE_ACL`, which macOS 13+ provides; read-only tools still work. See
+`/bin/bash` also works. Intel macOS 12.7.6 has a manually tested, best-effort
+APFS fallback requiring an ACL-free source and destination directory; the source
+and clone are checked again before writing. Host/Node version limits apply. See
 [macOS (arm64 and Intel)](macos.md) for the capability matrix and the known
 limitations.
 

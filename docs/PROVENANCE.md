@@ -54,7 +54,10 @@ repository history and in the published tarballs of the versions that carried th
 
 The current package declares `win32-x64`, `linux-x64`, `darwin-arm64` and `darwin-x64`.
 The 0.3.1 record below is historical: it shipped Apple Silicon only and did not include
-Intel. macOS 12's `CLONE_ACL` fallback is a separate follow-up; see [macOS](macos.md).
+Intel. Intel macOS 12.7.6 has a manually tested, best-effort APFS fallback requiring
+an ACL-free source and destination directory, followed by source/clone rechecks.
+This is source-build evidence, not macOS 12 verification of a CI-built release artifact.
+See [macOS](macos.md) for host/Node version limits.
 
 ## 0.3.1 release scope and verification
 
