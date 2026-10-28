@@ -56,11 +56,26 @@ node bench/cli.mjs calls --corpus harness-client --require-pinned --baseline-plu
 
 ## Read the evidence
 
+The `harness-client` and `python-stdlib` manifests retain the unfiltered `grep-miss`
+scan and add matching content queries at limits 5 and 50, each with `exactTotal`
+true/false (#384). `args.include` maps to the OPS `glob` filter. Compare each
+exact/bounded OPS pair for prefix-query savings; `summary` still needs a full scan.
+Both manifests retain their extension glob and add exact-basename and no-match glob.
+
+These measure current traversal, not UFFS or an index's build/refresh/memory costs.
+Official tools are a separate reference: their grep has no per-call `limit` or
+`exactTotal`, and their glob uses modified-time order and includes hidden/dependency
+paths that OPS excludes. Different coverage, ordering and caps mean different work.
+
 Arms execute sequentially within each case and reverse order on alternate rounds.
 Warmup calls use the same schedule but are excluded from measured rows. The report's
 `arms` map identifies each OPS package version, compiled `libSha256` and worker path/hash;
 the official arm records its tool-package versions. Existing top-level `pluginRoot`
 and `worker` fields continue to identify the candidate, or are null if absent.
+
+Each case/arm archives its effective `arguments`, including OPS overrides. Coverage
+adds `matchedObserved`, `matchedTotal` and `displayedItems` when present; absent facts
+are null, not zero. Early stops report a lower bound, not an exact total.
 
 `corpora[].rows` preserves arm and round order, dispatch-to-result `durationMs`, child
 `spawnMs`, output bytes, coverage and errors. Each case summarizes the arms separately.

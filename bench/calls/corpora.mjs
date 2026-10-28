@@ -136,7 +136,7 @@ export function adaptCase(item, projection, candidateName) {
   if (projection !== 'candidate') throw new Error(`unknown projection "${projection}"`)
   const common = { pattern: args.pattern, path: args.path }
   const mapped = item.tool === 'grep'
-    ? { name: candidateName('grep'), args: { ...common, outputMode: 'summary' } }
+    ? { name: candidateName('grep'), args: { ...common, ...(args.include === undefined ? {} : { glob: [args.include] }), outputMode: 'summary' } }
     : { name: candidateName('glob'), args: { ...common, pattern: [args.pattern], outputMode: 'paths', sort: 'path', limit: 100 } }
   return { ...mapped, args: { ...mapped.args, ...(item.candidate ?? {}) } }
 }

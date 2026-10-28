@@ -31,9 +31,11 @@ await test('two builds use separate policies and workers in one process with AB/
     fs.writeFileSync(override, 'explicit baseline worker')
     const output = path.join(root, 'report.json')
     const lines = []
+    const manifest = corpusFixture(root)
+    manifest.cases[0].candidate = { outputMode: 'content', limit: 5, exactTotal: false }
     const code = await main(['--corpus', 'tiny', '--baseline-plugin-root', base.root, '--baseline-worker', override,
       '--plugin-root', cand.root, '--repeat', '2', '--warmup', '1', '--out', output],
-    { manifests: [corpusFixture(root)], out: line => lines.push(line), err: line => lines.push(line) })
+    { manifests: [manifest], out: line => lines.push(line), err: line => lines.push(line) })
     assert.equal(code, 0, lines.join('\n'))
     const result = JSON.parse(fs.readFileSync(output, 'utf8'))
     assert.deepEqual(result.projections, ['baseline', 'candidate'])
@@ -49,6 +51,8 @@ await test('two builds use separate policies and workers in one process with AB/
     assert.deepEqual(result.corpora[0].rows.map(row => [row.round, row.projection]),
       [[0, 'baseline'], [0, 'candidate'], [1, 'candidate'], [1, 'baseline']])
     const summary = result.corpora[0].cases[0]
+    assert.deepEqual(summary.candidate.arguments, { pattern: 'needle', path: '.', outputMode: 'content', limit: 5, exactTotal: false })
+    assert.deepEqual(summary.baseline.arguments, summary.candidate.arguments)
     assert.equal(summary.baseline.bytesMedian, 3)
     assert.equal(summary.candidate.bytesMedian, 9)
     assert.equal(summary.baseline.errors + summary.candidate.errors, 0)

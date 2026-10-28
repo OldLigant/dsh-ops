@@ -393,6 +393,8 @@ export async function main(argv, io = {}) {
           const entries = rows.filter(row => row.case === testCase.id && row.projection === projection)
           const ok = entries.filter(row => !row.isError)
           summary[projection] = {
+            // Archive the dispatched arguments: bounded and exact queries are different work.
+            arguments: adaptCase(testCase, byId.get(projection).projection, byId.get(projection).publicToolName).args,
             // dispatch-to-result includes the child; childMs is the child alone; overheadMs is
             // everything else (queueing, JSON, rendering) and is what a spawn-free tool would pay.
             medianMs: median(ok.map(row => row.durationMs)),
@@ -462,7 +464,7 @@ export function converge(values) {
  * Read the coverage facts an OPS search reports about itself. Official tools return the matches
  * only, so they have no equivalent line; that asymmetry is itself part of the evidence.
  * @param {string} text - the tool result text.
- * @returns {{scannedFiles: number, scanComplete: boolean|null, skippedFiles: number|null, truncatedBy: string|null}|null} the facts, or null when the text carries none.
+ * @returns {object|null} Scan and result counts, or null when the text carries none.
  */
 export function coverageOf(text) {
   const scanned = /scannedFiles=(\d+)/.exec(text)
@@ -470,11 +472,17 @@ export function coverageOf(text) {
   const complete = /scanComplete=(true|false)/.exec(text)
   const skipped = /skippedFiles=(\d+)/.exec(text)
   const truncated = /TruncatedBy:\s*([\w-]+)/i.exec(text)
+  const observed = /matchedObserved=(\d+)/.exec(text)
+  const total = /matchedTotal=(\d+)/.exec(text)
+  const displayed = /(\d+) items? displayed/.exec(text)
   return {
     scannedFiles: Number(scanned[1]),
     scanComplete: complete === null ? null : complete[1] === 'true',
     skippedFiles: skipped === null ? null : Number(skipped[1]),
     truncatedBy: truncated === null ? null : truncated[1],
+    matchedObserved: observed === null ? null : Number(observed[1]),
+    matchedTotal: total === null ? null : Number(total[1]),
+    displayedItems: displayed === null ? null : Number(displayed[1]),
   }
 }
 

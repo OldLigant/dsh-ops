@@ -345,6 +345,31 @@ await test('one logical query maps to the two projections without inventing argu
   assert.throws(() => adaptCase(grep, 'nope', name), /unknown projection/)
 })
 
+await test('bounded grep preserves the shared include filter and changes only OPS arguments', () => {
+  const item = { tool: 'grep', args: { pattern: '^export ', path: '.', include: '**/*.ts' },
+    candidate: { outputMode: 'content', limit: 5, exactTotal: false } }
+  assert.deepEqual(adaptCase(item, 'official').args, item.args)
+  assert.deepEqual(adaptCase(item, 'candidate', name => `ops_${name}`).args,
+    { pattern: '^export ', path: '.', glob: ['**/*.ts'], outputMode: 'content', limit: 5, exactTotal: false })
+})
+
+await test('source and Python corpora pair exact and bounded hits and retain glob baselines', () => {
+  for (const manifest of loadManifests().filter(item => ['harness-client', 'python-stdlib'].includes(item.id))) {
+    for (const limit of [5, 50]) {
+      const exact = manifest.cases.find(item => item.id === `grep-hit-${limit}-exact`)
+      const bounded = manifest.cases.find(item => item.id === `grep-hit-${limit}-bounded`)
+      assert.ok(exact && bounded, `${manifest.id}: missing #384 pair at limit ${limit}`)
+      assert.deepEqual(exact.args, bounded.args)
+      assert.ok(exact.args.include)
+      assert.deepEqual(exact.candidate, { outputMode: 'content', limit, exactTotal: true })
+      assert.deepEqual(bounded.candidate, { ...exact.candidate, exactTotal: false })
+    }
+    assert.ok(manifest.cases.some(item => item.id === 'grep-miss'))
+    assert.equal(manifest.cases.find(item => item.id === 'glob-name')?.tool, 'glob')
+    assert.equal(manifest.cases.find(item => item.id === 'glob-miss')?.tool, 'glob')
+  }
+})
+
 await test('argv rejects a missing destination, a bad repeat and an unknown projection', () => {
   assert.throws(() => parseArgs([]), /--out is required/)
   assert.throws(() => parseArgs(['--out', 'x', '--repeat', '0']), /1\.\.10/)
@@ -412,7 +437,10 @@ await test('a series is steady only when its tail is flat, and the first touch i
 
 await test('coverage facts come from the search notice, and a plain result has none', () => {
   const notice = ['changed=0', '[Notice: scanComplete=false; pageComplete=true; scannedFiles=1024; skippedFiles=127; skipReasons={"oversized":4}; matchedObserved=0.]', '[Notice: 0 items displayed; complete=false; TruncatedBy: scan-budget; nextOffset=0; matched=0.]'].join('\n')
-  assert.deepEqual(coverageOf(notice), { scannedFiles: 1024, scanComplete: false, skippedFiles: 127, truncatedBy: 'scan-budget' })
+  assert.deepEqual(coverageOf(notice), { scannedFiles: 1024, scanComplete: false, skippedFiles: 127, truncatedBy: 'scan-budget',
+    matchedObserved: 0, matchedTotal: null, displayedItems: 0 })
+  assert.equal(coverageOf('scannedFiles=20; matchedObserved=5; matchedTotal=15; 5 items displayed').matchedTotal, 15)
+  assert.equal(coverageOf('scannedFiles=20; matchedObserved=1; matchedTotal=1; 1 item displayed').displayedItems, 1)
   assert.equal(coverageOf('src/a.ts:3: needle'), null)
 })
 
