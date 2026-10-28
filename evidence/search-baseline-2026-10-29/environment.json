@@ -1,0 +1,12 @@
+{
+  "capturedAt": "2026-10-28T18:25:43.426Z",
+  "os": "Windows 11 Home China",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpu": "13th Gen Intel(R) Core(TM) i9-13980HX",
+  "logicalCpus": 32,
+  "memoryGiB": 31.627552032470703,
+  "node": "v24.22.1",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "parentRevision": "8608786c1ffda86902f6bb8d7f8aba55a30814a3"
+}

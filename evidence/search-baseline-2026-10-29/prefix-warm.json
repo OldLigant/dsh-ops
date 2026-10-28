@@ -1,0 +1,44 @@
+{
+  "rows": [
+    {
+      "corpus": "harness-client",
+      "limit": 5,
+      "prefixEqual": true,
+      "itemsSha256": "2a8ede1535151df59e6e984a79e7c0586bcec35724b26bcf7d79d0c292d31281",
+      "exactTotal": 3712,
+      "boundedObserved": 5,
+      "exactScanned": 3155,
+      "boundedScanned": 19
+    },
+    {
+      "corpus": "harness-client",
+      "limit": 50,
+      "prefixEqual": true,
+      "itemsSha256": "77e3d2099ed062cea4ba5ebf621c2f6fd6b28287ea3b0b66fa6c01c075369b4c",
+      "exactTotal": 3712,
+      "boundedObserved": 50,
+      "exactScanned": 3155,
+      "boundedScanned": 28
+    },
+    {
+      "corpus": "python-stdlib",
+      "limit": 5,
+      "prefixEqual": true,
+      "itemsSha256": "f169be94cff5a0a445d7dce583e731069dc8d8a24db2e840885bdbeb1cee0195",
+      "exactTotal": 8621,
+      "boundedObserved": 5,
+      "exactScanned": 4120,
+      "boundedScanned": 87
+    },
+    {
+      "corpus": "python-stdlib",
+      "limit": 50,
+      "prefixEqual": true,
+      "itemsSha256": "fc0e9951d40cebf6010efd1850fec19c406630b8aefc494b293ea6fded92c454",
+      "exactTotal": 8621,
+      "boundedObserved": 50,
+      "exactScanned": 4120,
+      "boundedScanned": 94
+    }
+  ]
+}
