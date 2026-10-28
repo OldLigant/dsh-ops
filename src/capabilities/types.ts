@@ -1,4 +1,4 @@
-import type { JsonSchemaNode, ObjectJsonSchema, ToolPresentationMode } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode, ObjectJsonSchema, ToolPresentationMode } from '../adapter/dsh/types.js'
 
 export type Component = 'file' | 'ptc' | 'shell' | 'discovery'
 export type ParameterSchema = ObjectJsonSchema & Record<string, unknown> & {

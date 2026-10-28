@@ -2,8 +2,8 @@
  * Only explicit reviewed selections are masked. Missing selected counterparts
  * block the affected scope and restore its official tools until readiness returns.
  */
-import type { Context } from '@deepseek-ai/cordis'
-import type { ToolGuard } from '@deepseek-ai/dsh-tools'
+import type { Context } from './adapter/dsh/types.js'
+import type { ToolGuard } from './adapter/dsh/types.js'
 import type { OfficialReplacement } from './official-tool-catalog.js'
 import { nativeProviders } from './file/result-provider.js'
 import { isPresentationProbe } from './presentation.js'

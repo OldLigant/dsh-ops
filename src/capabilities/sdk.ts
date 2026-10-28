@@ -1,4 +1,4 @@
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode } from '../adapter/dsh/types.js'
 import type { ParameterSchema, SchemaCapability } from './types.js'
 export const SDK_PARAMETERS: ParameterSchema = { type: 'object', properties: {
   tools: { type: 'array', items: { type: 'string' },

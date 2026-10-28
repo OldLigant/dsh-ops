@@ -1,16 +1,16 @@
 /** PTC-only typed projection over the shared capability catalogue and canonical worker. */
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition } from '../adapter/dsh/types.js'
 import { publicToolName } from '../policy.js'
 import { capability, FILE_TOOLS, PTC_TOOLS } from '../capabilities/registry.js'
 import type { FileToolName, PtcToolName } from '../capabilities/registry.js'
 import { PARAMETERS, DESCRIPTIONS, OUTPUT } from '../capabilities/ptc.js'
-import { outcomeSchema } from '../modes/ptc/schema.js'
-import { canonicalOutput } from '../modes/ptc/canonical-schema.js'
-import { toOutcome } from '../modes/ptc/outcome.js'
+import { outcomeSchema } from './projection/schema.js'
+import { canonicalOutput } from './projection/canonical-schema.js'
+import { toOutcome } from './projection/outcome.js'
 import { WORKER_TIMEOUT_MS } from '../worker-protocol.js'
 export { PTC_TOOLS, PARAMETERS, DESCRIPTIONS, OUTPUT }
 export const PTC_API_TOOLS = Object.freeze([...FILE_TOOLS, ...PTC_TOOLS])
-export const PTC_SECTION = 'dsh-ops:repository-tooling:ptc'
+export const PTC_SECTION = 'dsh-ops:repository-tooling:mode-ptc'
 export function definition(tool: FileToolName | PtcToolName, execute: ToolDefinition['execute']): ToolDefinition {
   const entry = capability(tool)
   if (!entry || !('parameters' in entry)) throw new Error(`Missing PTC capability: ${tool}`)

@@ -74,7 +74,7 @@ await test('half-staged and unexpected targets are never silently skipped',async
 }))
 await test('manifest exact targets, npm platform filters and shell pins must agree',async()=>withTempDir('release-drift',root=>{
   fixture(root); const file=path.join(root,'dsh-plugin.json'), manifest=JSON.parse(fs.readFileSync(file,'utf8'))
-  manifest.contributes['x-components'].find(c=>c.id==='dsh-ops-ptc').targets.push('win32-arm64')
+  manifest.contributes['x-components'].find(c=>c.id==='dsh-ops-mode-ptc').targets.push('win32-arm64')
   fs.writeFileSync(file,JSON.stringify(manifest)); assert.match(run(root).out,/disagree/)
 }))
 await test('release closure requires the pinned Bash payload and refuses a PowerShell dependency', async () => withTempDir('release-shell-dep', root => {

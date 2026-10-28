@@ -1,7 +1,7 @@
-import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
-import type { Session } from '@deepseek-ai/dsh-session'
-import type { ToolExecution } from '@deepseek-ai/dsh-tools'
+import type { Agent } from '../../adapter/dsh/types.js'
+import type { GenerateOptions } from '../../adapter/dsh/types.js'
+import type { Session } from '../../adapter/dsh/types.js'
+import type { ToolExecution } from '../../adapter/dsh/types.js'
 import { exactJson } from './read-observation.js'
 import type { ReadObservation } from './read-observation.js'
 

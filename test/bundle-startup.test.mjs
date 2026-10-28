@@ -1,4 +1,4 @@
-/** Shipped bundle + representative standard-preset fs/search plugins, real DSH registry/prompt/services. */
+/** Shipped eight-row bundle + representative standard-preset fs/search plugins, real DSH registry/prompt/services. */
 import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
@@ -8,22 +8,54 @@ import FileSystem from '@deepseek-ai/dsh-fs-local'
 import * as FsTools from '@deepseek-ai/dsh-tool-fs'
 import * as SearchTools from '@deepseek-ai/dsh-tool-fs-search'
 import NodePtc from '@deepseek-ai/dsh-ptc-runtime-node'
-import { createScope } from '@deepseek-ai/dsh-scope'
+import { createScope, scopeOf, scopeParentOf } from '@deepseek-ai/dsh-scope'
 import { evaluate, isJsExpr } from '@deepseek-ai/cordis-plugin-loader'
 import { bootHost, shutdown } from './lib/host.mjs'
 import { assert, test, report, waitFor, withTempDir, PACKAGE_ROOT } from './lib/harness.mjs'
 import { resolveWorker } from '../lib/ptc/runtime.js'
+import { modeSectionName, publicToolName } from '../lib/policy.js'
 
 const { parse } = YAML
 resolveWorker({})
 // The shipped data-only bundle uses the public serialized Loader expression for platform defaults.
 const rows = parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'cordis.patch.yml'), 'utf8'))[0].insert
 const enabled = row => !(isJsExpr(row.disabled) ? evaluate({ process }, row.disabled.__jsExpr) : row.disabled)
-assert.equal(rows.find(row => row.id === 'dsh-ops-hide-official').disabled, true)
+assert.equal(rows.find(row => row.id === 'dsh-ops-compat').disabled, true)
 assert.equal(rows.find(row => row.id === 'dsh-ops-tui').disabled, true)
 
+/** Mount the shipped enabled rows, each under its own component name. */
+async function mountBundle(ctx) {
+  for (const row of rows.filter(enabled)) {
+    const component = row.name.split('/')[1]
+    const module = await import(`../lib/components/${component}/index.js`)
+    await ctx.plugin(module, row.config)
+  }
+}
+
+/**
+ * One real agent scope: fs/search official rows in the preset composition scope,
+ * a presentation, and a preset-identity stub. Official tools live in the preset
+ * parent scope exactly as the host composes a built-in preset; the agent scope
+ * inherits them, and an agent-scope restriction can only hide inherited names.
+ */
+async function mintAgent(ctx, presets, { id, mode, root, preset, presentation }) {
+  const presetScope = createScope(ctx, { preset: `${id}-preset` }).ctx
+  presets.set(scopeOf(presetScope), preset)
+  // These are the real standard-preset tool-fs and tool-fs-search rows, not fake
+  // official schema fixtures. No unrelated full-preset services.
+  await presetScope.plugin(FsTools, {})
+  await presetScope.plugin(SearchTools, { sampleOverCapGlobResults: false })
+  const agent = { id, session: { id, mode, header: { cwd: root } } }
+  // Create the agent scope from a tools-injected context: the scoped context
+  // inherits that dependency API, so per-agent restrictions are callable.
+  await presetScope.plugin({ inject: ['tools'], apply(inner) { agent.ctx = createScope(inner, agent, { parent: scopeOf(presetScope) }).ctx } })
+  await agent.ctx.plugin({ inject: ['tools'], apply(inner) { inner.tools.presentAs(presentation) } })
+  await ctx.serial('agent/created', { agent, source: 'startup' })
+  return agent
+}
+
 for (const mode of ['read-only', 'workspace-write', 'danger-full-access']) {
-  await test(`default bundle starts with standard fs/search in native/PTC/both under ${mode}`, async () => {
+  await test(`default bundle publishes the matching preset surface with standard fs/search under ${mode}`, async () => {
     await withTempDir('bundle-startup', async root => {
       const { ctx } = await bootHost()
       try {
@@ -32,60 +64,80 @@ for (const mode of ['read-only', 'workspace-write', 'danger-full-access']) {
         await ctx.plugin(FileSystem, {})
         await ctx.plugin(inner => inner.provide('sandboxPolicy', { resolve: ({ session }) => ({ mode: session.mode, workspaceRoot: root, sessionId: session.id }) }))
         await ctx.plugin(NodePtc, {})
-        for (const row of rows.filter(enabled)) {
-          const component = row.name === 'dsh-ops' ? 'file' : row.name.split('/')[1]
-          const module = await import(`../lib/components/${component}/index.js`)
-          const config = component === 'shell' && process.env.DSH_OPS_TEST_BASH
-            ? { ...row.config, bashPath: process.env.DSH_OPS_TEST_BASH } : row.config
-          await ctx.plugin(module, config)
-        }
-        for (const presentation of ['native', 'ptc', 'both']) {
-          const agent = { id: `${mode}-${presentation}`, session: { id: `${mode}-${presentation}`, mode, header: { cwd: root } } }
-          agent.ctx = createScope(ctx, agent).ctx
-          await agent.ctx.plugin({ inject: ['tools'], apply(inner) { inner.tools.presentAs(presentation) } })
-          // These are the real standard-preset tool-fs and tool-fs-search rows,
-          // not fake official schema fixtures. No unrelated full-preset services.
-          await agent.ctx.plugin(FsTools, {})
-          await agent.ctx.plugin(SearchTools, { sampleOverCapGlobResults: false })
-          await ctx.serial('agent/created', { agent, source: 'startup' })
-          const names = () => ctx.get('tools').schemas(agent).map(tool => tool.name)
-          await waitFor(() => names().includes(presentation === 'ptc' ? 'ops_inspect_local_file' : 'ops_read_files') && names().includes('read') && names().includes('grep') &&
-            names().includes('ops_load_sdk') === (presentation === 'ptc') &&
-            // The shell row is on by default on every supported platform (POSIX resolves the
-            // distribution's own bash); a configured-but-missing bash is covered below.
-            names().includes('ops_bash'), { what: `${mode}/${presentation} default publication` })
-          const assembled = await ctx.get('systemPrompt').assemble({ scope: agent, signal: new AbortController().signal })
-          assert.equal(assembled.tools.some(tool => tool.name === 'run_code'), presentation !== 'native')
-          assert.ok(assembled.sections.length > 0)
-          assert.ok(names().includes('write'), 'defaults must not mask standard-preset mutation tools')
-          const name = presentation === 'ptc' ? 'ops_inspect_local_file' : 'ops_read_files'
-          const args = presentation === 'ptc' ? { path: path.join(root, 'absent') } : { files: [{ path: path.join(root, 'absent') }] }
-          const result = await ctx.get('tools').get(name, agent).execute(args, { agent, signal: new AbortController().signal })
-          const data = presentation === 'ptc' ? result.data : result
-          assert.equal(presentation === 'ptc' ? result.error.code : data.items[0].error.code, 'NOT_FOUND', JSON.stringify(result))
-          console.log(`    startup ${mode}/${presentation}: ${assembled.tools.length} wire tools; official + OPS intact`)
-        }
+        const presets = new Map()
+        // The real host exposes a preset registry; this stub answers for this
+        // fixture's scopes only, exactly as `composedPreset(agent.ctx)` does.
+        ctx.provide('agentPresets', { composedPreset: scoped => presets.get(scopeParentOf(scopeOf(scoped))) })
+        await mountBundle(ctx)
+        const names = agent => ctx.get('tools').schemas(agent).map(tool => tool.name)
+        // `scope` drives the tool projection; route-section text additionally
+        // reads the live `agent`.
+        const assembled = agent => ctx.get('systemPrompt').assemble({ scope: agent, agent, signal: new AbortController().signal })
+
+        // A Standard-preset agent receives the resident native file tools, their
+        // discovery entry, and no replaced official file tools.
+        const standard = await mintAgent(ctx, presets, { id: `${mode}-standard`, mode, root, preset: 'standard', presentation: 'native' })
+        await waitFor(() => names(standard).includes('ops_read_files') && names(standard).includes('ops_discover_tools'), { what: `${mode} standard publication` })
+        for (const resident of ['ops_inspect_local_file', 'ops_glob', 'ops_grep', 'ops_read_files', 'ops_result']) assert.ok(names(standard).includes(resident), `${resident}: ${names(standard).join(', ')}`)
+        await waitFor(() => ['read', 'glob', 'grep'].every(name => !names(standard).includes(name)), { what: `${mode}: standard replacement hides official file tools` })
+        assert.ok(names(standard).includes('write'), 'defaults must not mask standard-preset mutation tools')
+        assert.equal(names(standard).includes('ops_bash'), process.platform === 'win32', 'POSIX keeps the host bash; Windows replaces pwsh')
+        const standardPrompt = await assembled(standard)
+        assert.ok(standardPrompt.sections.some(section => section.name === modeSectionName('mode-standard') && String(section.text).includes('ops_read_files')), 'standard routing section names the resident surface')
+        const result = await ctx.get('tools').get('ops_read_files', standard).execute({ files: [{ path: path.join(root, 'absent') }] }, { agent: standard, signal: new AbortController().signal })
+        assert.equal(result.items[0].error.code, 'NOT_FOUND', JSON.stringify(result))
+        console.log(`    startup ${mode}/standard: ${standardPrompt.tools.length} wire tools; resident OPS replaces read/glob/grep`)
+
+        // A Cordis-preset agent is served by its own row, with its own section.
+        const cordis = await mintAgent(ctx, presets, { id: `${mode}-cordis`, mode, root, preset: 'cordis', presentation: 'native' })
+        await waitFor(() => names(cordis).includes('ops_read_files'), { what: `${mode} cordis publication` })
+        await waitFor(() => !names(cordis).includes('read'), { what: `${mode}: cordis replaces read` })
+        const cordisPrompt = await assembled(cordis)
+        assert.ok(cordisPrompt.sections.some(section => section.name === modeSectionName('mode-cordis') && String(section.text).length > 0), 'cordis routing section')
+
+        // The Minimal preset keeps its official tools and receives only the
+        // discovery entry. It publishes no routing section.
+        const minimal = await mintAgent(ctx, presets, { id: `${mode}-minimal`, mode, root, preset: 'minimal', presentation: 'native' })
+        await waitFor(() => names(minimal).includes('ops_discover_tools'), { what: `${mode} minimal discovery entry` })
+        for (const resident of ['ops_inspect_local_file', 'ops_read_files', 'ops_glob', 'ops_grep']) assert.equal(names(minimal).includes(resident), false, `${mode}: minimal publishes no ${resident}`)
+        for (const official of ['read', 'glob', 'grep']) assert.ok(names(minimal).includes(official), `${mode}: minimal keeps ${official}`)
+        const minimalPrompt = await assembled(minimal)
+        assert.equal(minimalPrompt.sections.some(section => section.name.startsWith('dsh-ops:repository-tooling:mode-') && String(section.text).trim() !== ''), false, 'minimal publishes no routing text')
+
+        // A PTC-preset agent publishes the scoped SDK surface and no native
+        // routing text; official file tools stay visible (the PTC row replaces none).
+        const ptc = await mintAgent(ctx, presets, { id: `${mode}-ptc`, mode, root, preset: 'ptc', presentation: 'ptc' })
+        await waitFor(() => names(ptc).includes('ops_load_sdk'), { what: `${mode} PTC publication` })
+        assert.equal(names(ptc).includes('read'), true, 'the PTC row replaces no official file tool')
+        const ptcPrompt = await assembled(ptc)
+        assert.deepEqual(ptcPrompt.tools.map(tool => tool.name), ['run_code'])
+        assert.ok(ptcPrompt.sections.some(section => section.name === modeSectionName('mode-ptc') && String(section.text).length > 0), 'PTC routing section')
+        await waitFor(() => !names(ptc).includes('ops_discover_tools'), { what: `${mode} discovery withdrawal in PTC presentation` })
       } finally { await shutdown(ctx) }
     })
   })
 }
-await test('a missing optional Bash leaves the file bundle available', async () => {
+await test('a missing optional Bash leaves the native file surface available', async () => {
   await withTempDir('bundle-no-bash', async root => {
     const { ctx } = await bootHost()
     try {
       await ctx.plugin(Subprocess)
       await ctx.plugin(Sandbox, {})
       await ctx.plugin(inner => inner.provide('sandboxPolicy', { resolve: ({ session }) => ({ mode: session.mode, workspaceRoot: root, sessionId: session.id }) }))
+      const presets = new Map()
+      ctx.provide('agentPresets', { composedPreset: scoped => presets.get(scopeParentOf(scopeOf(scoped))) })
       for (const row of rows.filter(enabled)) {
-        const component = row.name === 'dsh-ops' ? 'file' : row.name.split('/')[1]
+        const component = row.name.split('/')[1]
         const module = await import('../lib/components/' + component + '/index.js')
-        await ctx.plugin(module, component === 'shell' ? { ...row.config, bashPath: path.join(root, 'absent-bash.exe') } : row.config)
+        await ctx.plugin(module, component === 'mode-standard' ? { ...row.config, bashPath: path.join(root, 'absent-bash.exe') } : row.config)
       }
+      const presetScope = createScope(ctx, { preset: 'no-bash-preset' }).ctx
+      presets.set(scopeOf(presetScope), 'standard')
       const agent = { id: 'no-bash', session: { id: 'no-bash', mode: 'workspace-write', header: { cwd: root } } }
-      agent.ctx = createScope(ctx, agent).ctx
+      await presetScope.plugin({ inject: ['tools'], apply(inner) { agent.ctx = createScope(inner, agent, { parent: scopeOf(presetScope) }).ctx } })
       await ctx.serial('agent/created', { agent, source: 'startup' })
       const names = () => ctx.get('tools').schemas(agent).map(tool => tool.name)
-      await waitFor(() => names().includes('ops_read_files'), { what: 'file publication without optional Bash' })
+      await waitFor(() => names().includes('ops_read_files'), { what: 'native file publication without optional Bash' })
       assert.equal(names().includes('ops_bash'), false)
       const result = await ctx.get('tools').get('ops_read_files', agent).execute({ files: [{ path: path.join(root, 'absent') }] }, { agent, signal: new AbortController().signal })
       assert.equal(result.items[0].status, 'error', JSON.stringify(result))

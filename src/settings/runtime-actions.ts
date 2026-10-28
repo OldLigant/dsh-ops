@@ -1,7 +1,7 @@
 /** Operator runtime plans: fixed actions, one-use previews, serialized execution. */
 import { randomUUID, createHash } from 'node:crypto'
 import path from 'node:path'
-import type { TypertGatewayBinding } from '@deepseek-ai/dsh-typert-protocol'
+import type { TypertGatewayBinding } from '../adapter/dsh/types.js'
 import { PACKAGE_ROOT } from '../paths.js'
 import { gitBashCandidates, managedBashInventory, removeManagedBash, selectBashRuntime } from '../shells/manager.js'
 import { shellUpstreamPin, provisionedShellVersionDir } from '../shells/pins.js'
@@ -71,7 +71,7 @@ export class RuntimeActions {
       preview = { action, available: Boolean(pin) && !unowned.length, details: pin ? [
         `Download ${pin.url}`, `Version: ${pin.version}; bytes: ${pin.bytes}; SHA-256: ${pin.sha256}`,
         `Install into ${provisionedShellVersionDir({ kind: 'bash', version: pin.version, env: this.options.env })}`,
-        'The pinned archive and executable are verified. No profile setting is changed. Reload the shell row after selecting the executor.',
+        'The pinned archive and executable are verified. No profile setting is changed. Reload the mode row after selecting the executor.',
         ...inventory.map(entry => 'Old managed version may be replaced: ' + entry.directory),
       ] : [], ...(!pin ? { reason: 'Managed Bash installation is available only for supported Windows builds.' } : {}),
         ...(unowned.length ? { reason: 'Unowned directories exist in the managed Bash store. Resolve them manually before installing.' } : {}) }

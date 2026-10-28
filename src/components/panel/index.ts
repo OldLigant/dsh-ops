@@ -1,6 +1,6 @@
 /** Opt-in capture. A disabled row registers nothing and starts no filesystem work. */
-import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-session'
+import type { Context } from '../../adapter/dsh/types.js'
+import type {} from '../../adapter/dsh/types.js'
 import { readFileSync } from 'node:fs'
 import { createPanelCollector, resolvePanelConfig } from '../../panel/collect.js'
 import { configObject, editable, settingsConfig } from '../../settings/schema.js'

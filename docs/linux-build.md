@@ -12,9 +12,10 @@ packages to fetch.
 
 | Component | Linux x64 | Notes |
 | --- | --- | --- |
-| `dsh-ops/file` | yes | 4 tools: `ops_inspect_local_file`, `ops_grep`, `ops_glob`, `ops_replace` |
-| `dsh-ops/ptc` | yes | `ops_batch`, `ops_result`; opt-in |
-| `dsh-ops/shell` | yes | `ops_bash` over the host bash; pwsh stays Windows x64 |
+| `dsh-ops/mode-standard` | yes | resident OPS file tools and `ops_bash` over the host bash; no official tool is replaced on Linux |
+| `dsh-ops/mode-cordis` | yes | same surface as Standard, with its own routing section |
+| `dsh-ops/mode-minimal` | yes | dynamic-loading entry and `ops_bash` |
+| `dsh-ops/mode-ptc` | yes | PTC SDK: `ops_batch`, `ops_result` and the typed catalogue |
 
 ## Prerequisites
 
@@ -189,16 +190,16 @@ $ dsh --profile <profile> --dump-config
 
 ## Configuring the shell lane
 
-`ops_bash` works on Linux out of the box: the `shell` component resolves the
+`ops_bash` works on Linux out of the box: every enabled mode row resolves the
 distribution's own bash (`config.bashPath` → `PATH` → `/bin/bash`,
 `/usr/bin/bash`, `/usr/local/bin/bash`) instead of shipping one, and a confined
 mode must be confined by a host sandbox — if none can confine the call it is
 refused, never run unrestricted.
 
-To use a different bash, name it explicitly on the shell row:
+To use a different bash, name it explicitly on a mode row:
 
 ```yaml
-- id: dsh-ops-shell
+- id: dsh-ops-mode-standard
   config:
     bashPath: /usr/bin/bash
 ```
@@ -214,7 +215,7 @@ To use a different bash, name it explicitly on the shell row:
 | `Unsupported runtime target linux-x64` | a build whose `PLATFORMS` list predates Linux support | use a version that lists `linux-x64`, or build from a checkout that does |
 | `Error: Unsupported target` from `build:ptc`, after a successful compile | the stage step rejected the target | same as above; the compile itself is fine |
 | `npm error code EBADPLATFORM` | the published tarball declares `os: ["win32"]` | install from a checkout/`npm pack` through `dsh plugin` |
-| file tools silently missing, no error | `resolveWorker()` threw and the component degraded: `required` defaults to `false` | set `required: true` on the `dsh-ops/file` row to make it loud |
+| file tools silently missing, no error | `resolveWorker()` threw and the component degraded: `required` defaults to `false` | set `required: true` on the `dsh-ops/mode-standard` row to make it loud |
 | `Bad file descriptor (os error 9)` in `preflight` | the audit store or atomic replace synced a directory handle that cap-std opened `O_PATH` on Linux, where `fsync` is refused | fixed in `native/src/lib.rs`; rebuild with `npm run build:ptc` |
 | a denied command reports a generic failure instead of `POLICY_DENIED` | the host's English denial signatures were matched against a localized libc message | the bash lane pins `LC_MESSAGES=C`; a non-English host on an older build shows this |
 

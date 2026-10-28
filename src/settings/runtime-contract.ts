@@ -1,5 +1,5 @@
 /** Shared strict descriptors for operator-only settings actions; no host value imports. */
-import type { InvocationDescriptor, RemoteResult, TypertCodec } from '@deepseek-ai/dsh-typert-protocol'
+import type { InvocationDescriptor, RemoteResult, TypertCodec } from '../adapter/dsh/types.js'
 export const RUNTIME_ACTIONS = ['install-bash', 'remove-bash', 'upgrade-pwsh'] as const
 export type RuntimeAction = typeof RUNTIME_ACTIONS[number]
 export type BashSource = 'managed' | 'git'

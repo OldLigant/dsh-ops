@@ -1,5 +1,5 @@
 /** Shared stored-reference wire metadata and the Native projection of the result capability. */
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode } from '../adapter/dsh/types.js'
 import type { ParameterSchema } from './types.js'
 const string: JsonSchemaNode = { type: 'string' }
 const integer: JsonSchemaNode = { type: 'integer' }

@@ -4,6 +4,8 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { parseDocument } from 'yaml'
 import { resolveConfig } from '../lib/config.js'
+import { MODE_CONFIG_KEYS, resolveModeConfig } from '../lib/modes/config.js'
+import { COMPONENTS, componentEnabled, componentEntry } from '../lib/components/defaults.js'
 import { BASH_TOOL_NAME, ENV_OVERRIDES, shellEnvOverrides, resolveShells } from '../lib/shells.js'
 import { assert, PACKAGE_ROOT, TEST_HOME, report, test, withTempDir } from './lib/harness.mjs'
 import { config, makeExecutable } from './lib/shells-fixtures.mjs'
@@ -22,29 +24,38 @@ await test('the manifest declares the plugin\'s own shell tools as their own nam
     source: "the plugin's bash layer via host subprocess",
     publicPrefix: 'ops_',
     tools: ['bash'],
-    shellPermission: 'shell component enabled AND publishBashTool AND authoritative per-session DSH policy; restricted modes require host confinement',
+    shellPermission: 'Mode row enabled with the matching preset AND publishBashTool AND authoritative per-session DSH policy; restricted modes require host confinement',
   })
   // The declared name is the name the tool actually registers under.
   assert.equal(BASH_TOOL_NAME, `${namespaces[1].publicPrefix}${namespaces[1].tools[0]}`)
 })
 
-await test('the bundle patch declares independent components, with no persistent pwsh override', () => {
+await test('the bundle patch declares the eight components, with no persistent pwsh override', () => {
   const entries = patchEntries()
   assert.equal(entries.length, 1)
-  assert.deepEqual(entries[0].insert.map(row => row.id), ['dsh-ops-shell', 'dsh-ops-file', 'dsh-ops-ptc', 'dsh-ops-discovery', 'dsh-ops-panel', 'dsh-ops-tui', 'dsh-ops-hide-official'])
+  assert.deepEqual(entries[0].insert.map(row => row.id), COMPONENTS.map(component => `dsh-ops-${component}`))
+  assert.deepEqual(entries[0].insert.map(row => row.name), COMPONENTS.map(componentEntry))
+  for (const component of COMPONENTS) {
+    const row = entries[0].insert.find(item => item.id === `dsh-ops-${component}`)
+    assert.equal(row.disabled ?? false, !componentEnabled(component, process.platform), `${component} enablement default`)
+  }
   const row = id => entries[0].insert.find(item => item.id === `dsh-ops-${id}`)
-  assert.equal(row('shell').disabled, undefined, 'the shell row is on by default on every platform')
-  for (const name of ['file', 'ptc', 'discovery']) assert.equal(row(name).disabled, undefined)
-  for (const name of ['panel', 'tui', 'hide-official']) assert.equal(row(name).disabled, true)
+  for (const name of ['mode-minimal', 'mode-standard', 'mode-ptc', 'mode-cordis', 'discovery']) assert.equal(row(name).disabled, undefined, `${name} starts enabled`)
+  for (const name of ['compat', 'panel', 'tui']) assert.equal(row(name).disabled, true, `${name} stays opt-in`)
   assert.equal(row('panel').config.capture, true, 'a fresh enabled row starts capture')
 })
 
-await test('the shipped dsh-ops row states the documented shell defaults', () => {
-  const row = patchEntries()[0].insert.find((candidate) => candidate.id === 'dsh-ops-shell')
-  const resolved = resolveConfig(row.config)
-  assert.equal(resolved.bashPath, undefined)
-  assert.equal(resolved.publishBashTool, true)
-  assert.equal(resolved.allowSystemShellFallback, false)
+await test('every shipped mode row states the documented shell defaults through its own validator', () => {
+  for (const mode of ['mode-minimal', 'mode-standard', 'mode-ptc', 'mode-cordis']) {
+    const row = patchEntries()[0].insert.find((candidate) => candidate.id === `dsh-ops-${mode}`)
+    // The row's own config is the input; unknown keys must fail loud, so every
+    // written key has to come from the mode converter's accepted list.
+    for (const key of Object.keys(row.config ?? {})) assert.ok(MODE_CONFIG_KEYS.includes(key), `${mode}.config.${key} is accepted`)
+    const resolved = resolveModeConfig(row.config)
+    assert.equal(resolved.bashPath, undefined, mode)
+    assert.equal(resolved.publishBashTool, true, mode)
+    assert.equal(resolved.allowSystemShellFallback, false, mode)
+  }
 })
 
 await test('system discovery is opt-in on Windows and is the rung on a POSIX host', async () => {

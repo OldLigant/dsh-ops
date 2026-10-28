@@ -3,6 +3,7 @@ import path from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import { composeBundle } from '../scripts/lib/compose-bundle.mjs'
+import { COMPONENTS, componentEntry } from '../lib/components/defaults.js'
 import { assert, test, report, PACKAGE_ROOT } from './lib/harness.mjs'
 
 // The normal gate uses its locked host. An isolated published-host installation
@@ -11,7 +12,9 @@ const boot = await import(process.env.DSH_OPS_TEST_HOST_BOOT
   ? pathToFileURL(path.resolve(process.env.DSH_OPS_TEST_HOST_BOOT)).href
   : '@deepseek-ai/dsh-app-boot')
 const pkg = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json'), 'utf8'))
-const components = ['shell', 'file', 'background', 'ptc', 'discovery', 'panel', 'tui', 'hide-official']
+// The shipped roster is the code's own list: a component added to the plugin
+// without resources, or left in the patch without a declaration, must not pass.
+const components = [...COMPONENTS]
 const patch = parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'cordis.patch.yml'), 'utf8'))
 
 await test(`explicit host compatibility is consistent and bounded (${boot.getDshRuntimeVersion()})`, () => {
@@ -21,8 +24,8 @@ await test(`explicit host compatibility is consistent and bounded (${boot.getDsh
   // read peers, newer hosts prefer engines, so test both independently.
   for (const range of [pkg.engines.dsh, pkg.peerDependencies['@deepseek-ai/dsh']]) {
     const candidate = { name: pkg.name, version: pkg.version, engines: { dsh: range }, peerDependencies: { '@deepseek-ai/dsh': range } }
-    for (const version of ['0.2.0-rc.2', '0.2.1-rc.2']) assert.equal(boot.evaluatePluginCompatibility(candidate, {}, version), undefined)
-    for (const version of ['0.2.0-rc.1', '0.2.1-rc.3', '0.3.0']) assert.ok(boot.evaluatePluginCompatibility(candidate, {}, version), `must not claim ${version}`)
+    for (const version of ['0.2.0-rc.2', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4']) assert.equal(boot.evaluatePluginCompatibility(candidate, {}, version), undefined)
+    for (const version of ['0.2.0-rc.1', '0.2.2-rc.1', '0.3.0']) assert.ok(boot.evaluatePluginCompatibility(candidate, {}, version), `must not claim ${version}`)
   }
 })
 
@@ -42,9 +45,18 @@ await test('component resources resolve and the host reads bilingual text plus i
   }
 })
 
+await test('legacy component modules stay exported for saved rows but are no longer the shipped roster', () => {
+  for (const legacy of ['shell', 'file', 'ptc', 'hide-official', 'background']) {
+    assert.ok(pkg.exports[`./${legacy}`], `${legacy} legacy export must stay`)
+    assert.equal(components.includes(legacy), false, `${legacy} is no longer a shipped component`)
+    assert.equal(patch[0].insert.some((row) => row.id === `dsh-ops-${legacy}`), false, `${legacy} row must not be inserted`)
+  }
+})
+
 await test('the host composes every shipped row and refuses a missing override target', () => {
   const rows = composeBundle([patch], boot.composeEntries)
-  assert.deepEqual(rows.map(row => row.id), components.filter(name => name !== 'background').map(name => `dsh-ops-${name}`))
+  assert.deepEqual(rows.map(row => row.id), components.map(name => `dsh-ops-${name}`))
+  assert.deepEqual(rows.map(row => row.name), components.map(componentEntry))
   const upstream = [{ insert: [{ id: 'upstream', name: 'cordis:fixture' }] }]
   const override = [{ id: 'upstream', config: { enabled: true } }]
   assert.equal(composeBundle([upstream, patch, override], boot.composeEntries).find(row => row.id === 'upstream').config.enabled, true)

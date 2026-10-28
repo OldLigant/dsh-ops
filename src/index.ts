@@ -1,8 +1,8 @@
 /** dsh-ops host half. Own registrations only; no @deepseek-ai value imports. */
-import type { Context } from '@deepseek-ai/cordis'
-import type { Agent } from '@deepseek-ai/dsh-agent'
-import type {} from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-system-prompt'
+import type { Context } from './adapter/dsh/types.js'
+import type { Agent } from './adapter/dsh/types.js'
+import type {} from './adapter/dsh/types.js'
+import type {} from './adapter/dsh/types.js'
 import { resolveConfig } from './config.js'
 import { mountConfigUpdates, updatedConfig } from './config-updates.js'
 import { SECTION_ORDERS, TOOLING_SECTION, BASH_TOOL, publicToolName, hostShellRefusal, renderToolingPolicy } from './policy.js'
@@ -15,6 +15,7 @@ import { visibleNames } from './surface.js'
 import { mountWorkspacePreparation } from './workspace-preparation.js'
 import { safeDispose, safeDisposeAll } from './teardown.js'
 import { mountResultLifecycle } from './kernel/result-lifecycle.js'
+import { applyMode } from './modes/apply.js'
 
 export { Config } from './settings/file-config.js'
 export const name = 'dsh-ops'
@@ -136,5 +137,7 @@ export function applyComponent(root: Context, rawConfig: unknown, component: Com
   }
 }
 
-// Backward-compatible module entry. The bundle uses independently toggled rows.
-export function apply(root: Context, rawConfig: unknown): void { return applyComponent(root, rawConfig, 'file') }
+// Package-root entry. The optional `dsh-ops/lib/profiles/client` carrier row names
+// this module instead of `dsh-ops/mode-standard`, so it must publish exactly that
+// mode; the canonical bundle inserts the explicit component rows instead.
+export function apply(root: Context, rawConfig: unknown): void { return applyMode(root, rawConfig, 'standard') }

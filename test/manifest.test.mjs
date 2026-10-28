@@ -10,14 +10,15 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import {
-  HOST_SHELL_SECTION,
-  IN_PROCESS_TOOLS,
+  MODE_SECTION_ORDERS,
   TOOLING_SECTION,
   TOOL_PREFIX,
+  modeSectionName,
   publicToolName,
   renderToolingPolicy,
 } from '../lib/policy.js'
 import { NATIVE_FILE_TOOLS } from '../lib/capabilities/registry.js'
+import { COMPONENTS, componentEnabled, componentEntry } from '../lib/components/defaults.js'
 import { assert, PACKAGE_ROOT, report, test } from './lib/harness.mjs'
 
 const manifestFile = path.join(PACKAGE_ROOT, 'dsh-plugin.json')
@@ -75,7 +76,7 @@ await test('every declared tool is one the policy actually names', () => {
   assert.equal(namespaces.some((entry) => entry.serverName === 'fastctx' || entry.transport === 'stdio'), false)
 
   // Every further namespace is this plugin's own in-process surface, so its
-  // names are checked against `IN_PROCESS_TOOLS` and against the policy.
+  // names are checked against the shell capability and against the policy.
   for (const [offset, entry] of namespaces.slice(1).entries()) {
     const index = offset + 1
     assert.ok(
@@ -84,17 +85,11 @@ await test('every declared tool is one the policy actually names', () => {
     )
     for (const tool of entry.tools) {
       assert.ok(
-        IN_PROCESS_TOOLS.includes(tool),
+        ['bash', 'pwsh'].includes(tool),
         `the namespace at index ${index} declares ${tool}, which the plugin does not register itself`,
       )
       assert.ok(policy.includes(publicToolName(tool)), `the policy never names ${publicToolName(tool)}`)
     }
-  }
-
-  // The other direction: every tool this plugin registers itself is named
-  // somewhere, so a new in-process tool cannot land without policy text.
-  for (const tool of IN_PROCESS_TOOLS) {
-    assert.ok(policy.includes(publicToolName(tool)), `the policy never names ${publicToolName(tool)}`)
   }
 })
 
@@ -110,9 +105,14 @@ await test('the declared namespace documents the upstream names and the public p
   }
 })
 
-await test('the declared prompt sections are the registered ones', () => {
+await test('the declared prompt sections are the mode rows the policy registers', () => {
   const declared = raw.contributes['x-prompt-sections'].map((section) => section.name)
-  assert.deepEqual([...declared].sort(), ['file', 'shell', 'ptc'].map(name => `${TOOLING_SECTION}:${name}`).sort())
+  const expected = Object.keys(MODE_SECTION_ORDERS).map((suffix) => modeSectionName(suffix))
+  assert.deepEqual([...declared].sort(), [...expected].sort())
+  // The legacy per-component sections are gone: rows publish routing text under
+  // their mode suffix only, and the Minimal row publishes none at all.
+  assert.equal(declared.some((name) => ['file', 'shell', 'ptc'].some((legacy) => name === `${TOOLING_SECTION}:${legacy}`)), false)
+  assert.equal(declared.includes(`${TOOLING_SECTION}:mode-minimal`), false)
   // The background stub still loads for existing rows but is no longer a declared component.
   assert.equal(raw.contributes['x-components'].some((component) => component.entry === 'dsh-ops/background'), false)
 })
@@ -128,17 +128,23 @@ await test('the manifest license matches the package and is MIT', () => {
   assert.ok(pkg.files.includes('licenses'), 'the license texts ship in the package')
 })
 
-await test('the bundle patch inserts no background row and writes no removed FastCtx key', async () => {
+await test('the bundle patch inserts exactly the eight new rows and no removed FastCtx key', async () => {
   const { parse } = await import('yaml')
   const { LEGACY_FASTCTX_KEYS } = await import('../lib/config.js')
   const patch = parse(fs.readFileSync(path.join(PACKAGE_ROOT, pkg.dsh.bundle.patch), 'utf8'))
   const rows = patch.flatMap((entry) => entry.insert ?? [])
-  assert.deepEqual(rows.map((row) => row.name), ['dsh-ops/shell', 'dsh-ops/file', 'dsh-ops/ptc', 'dsh-ops/discovery', 'dsh-ops/panel', 'dsh-ops/tui', 'dsh-ops/hide-official'])
+  assert.deepEqual(rows.map((row) => row.id), COMPONENTS.map((component) => `dsh-ops-${component}`))
+  assert.deepEqual(rows.map((row) => row.name), COMPONENTS.map((component) => componentEntry(component)))
+  // The legacy rows remain exported modules; they are not inserted into new profiles.
+  for (const legacy of ['shell', 'file', 'ptc', 'hide-official', 'background']) {
+    assert.equal(rows.some((row) => row.id === `dsh-ops-${legacy}`), false, `${legacy} must not be inserted`)
+    assert.equal(rows.some((row) => row.name === `dsh-ops/${legacy}`), false, `${legacy} specifier must not be inserted`)
+  }
   for (const row of rows) {
     for (const key of LEGACY_FASTCTX_KEYS) assert.equal(Object.hasOwn(row.config ?? {}, key), false, `${row.name} still writes ${key}`)
   }
-  // The stub stays exported so profiles that still name the row keep loading.
-  assert.ok(pkg.exports['./background'])
+  // Every legacy entry stays exported so profiles that still name the old row keep loading.
+  for (const legacy of ['shell', 'file', 'ptc', 'hide-official', 'background']) assert.ok(pkg.exports[`./${legacy}`], legacy)
 })
 
 await test('the declared host entry is the shipped module', () => {
@@ -171,7 +177,7 @@ await test('the card icon is a self-contained PNG with bounded dimensions', () =
 
 await test('the icon and all component entries are shipped in the package whitelist', () => {
   assert.ok(pkg.files.includes('docs/assets/icon.png'))
-  for (const component of ['shell', 'file', 'background', 'ptc', 'discovery', 'panel', 'tui', 'hide-official']) {
+  for (const component of COMPONENTS) {
     const directory = path.join(PACKAGE_ROOT, 'lib', 'components', component)
     assert.ok(fs.existsSync(path.join(directory, 'index.js')))
     assert.ok(pkg.exports[`./${component}`])
@@ -184,10 +190,19 @@ await test('the icon and all component entries are shipped in the package whitel
   }
 })
 
-await test('hiding, panel and TUI are opt-in while shell/file/PTC/discovery rows default enabled', () => {
+await test('the four mode rows and discovery are opt-in false only for compatibility, capture and TUI', () => {
   const components = raw.contributes['x-components']
-  for (const [id, enabled] of [['shell', true], ['file', true], ['ptc', true], ['discovery', true], ['panel', false], ['tui', false], ['hide-official', false]]) {
-    assert.equal(components.find(component => component.id === `dsh-ops-${id}`).defaultEnabled, enabled)
+  assert.deepEqual(components.map((component) => component.id), COMPONENTS.map((component) => `dsh-ops-${component}`))
+  for (const component of COMPONENTS) {
+    assert.equal(components.find((entry) => entry.id === `dsh-ops-${component}`).defaultEnabled, componentEnabled(component, 'win32'))
+  }
+  // Stated directly as well, so a flipped default is reviewed rather than
+  // silently accepted by the shared predicate.
+  for (const component of ['mode-minimal', 'mode-standard', 'mode-ptc', 'mode-cordis', 'discovery']) {
+    assert.equal(components.find((entry) => entry.id === `dsh-ops-${component}`).defaultEnabled, true, component)
+  }
+  for (const component of ['compat', 'panel', 'tui']) {
+    assert.equal(components.find((entry) => entry.id === `dsh-ops-${component}`).defaultEnabled, false, component)
   }
 })
 

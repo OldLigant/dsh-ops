@@ -72,6 +72,15 @@ removed the dependency or payload. Verify the final profile manifest, bundle
 selection and installed package state through the official manager. Transaction
 rollback and registry persistence belong to DSH's package manager.
 
+## Moving from 0.4.x to 0.5.x
+
+| Change | Action after upgrade |
+| --- | --- |
+| The bundle now declares eight rows: four preset-mode rows (`mode-minimal`, `mode-standard`, `mode-ptc`, `mode-cordis`), `discovery`, `compat`, `panel` and `tui`. The `shell`, `file`, `ptc` and `hide-official` rows are gone. | Delete saved profile overrides for the removed rows; a leftover override has no target and produces a startup `patch: entry ... not found` warning. Re-set the mode row switches you want. |
+| An enabled mode row hides the official tools it replaces: `read`/`glob`/`grep` in Standard and Cordis, and the Windows official shell in every mode. | There is no per-tool selection any more. To keep official tools visible, enable the `dsh-ops/compat` switch; disable a mode row to stop publishing its OPS surface. |
+| Windows command execution now uses `ops_bash` instead of the official `pwsh` while a mode row is enabled and the OPS counterpart is visible. | Use `ops_bash` for commands and host `pwsh` only for Windows-native functionality; enable Compatibility mode if a workflow needs the official shell. |
+| Data inspection, the TUI sidebar and Compatibility mode remain opt-in. | Enable their rows when needed; they start disabled in a fresh profile. |
+
 ## Moving from 0.3.x to 0.4.x
 
 | Change | Action after upgrade |

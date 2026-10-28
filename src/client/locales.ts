@@ -1,6 +1,8 @@
-import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { TranslateNS } from '../adapter/dsh/types.js'
 export const en = {
   replacements: 'Choose which official tools OPS replaces.', discovery: 'Choose discoverable and always-loaded capabilities.', shell: 'Manage Bash and the standard host PowerShell installation.',
+  modeMinimal: 'Preset enhancement: adds OPS tools to Minimal sessions and replaces the official Windows shell.', modeStandard: 'Preset enhancement: replaces the official read, glob and grep tools and the Windows shell for Standard sessions.',
+  modePtc: 'Preset enhancement: publishes the PTC SDK for PTC sessions and replaces the official Windows shell.', modeCordis: 'Preset enhancement: replaces the official read, glob and grep tools and the Windows shell for Cordis sessions.',
   unavailable: 'Enable this row with the built-in switch to edit its settings. A writable host profile is required.', loading: 'Loading host settings…',
   save: 'Save changes', reset: 'Reset to saved', saved: 'Saved. The host reloaded this row.', rejected: 'The host refused this save. Reset to the latest saved values and review your changes.', saving: 'Saving…',
   replacementsHelp: 'Selected tools use OPS argument and output contracts. Read is bounded UTF-8; search excludes hidden files and links. Leave a tool unchecked to keep the official workflow.',
@@ -15,11 +17,13 @@ export const en = {
   install: 'Install managed Bash', remove: 'Remove managed Bash', upgrade: 'Install or upgrade PowerShell',
   preview: 'Review this action', cancel: 'Cancel running action', dismiss: 'Close preview', busy: 'Working…',
   pwshHelp: 'This updates the standard PowerShell 7 installation through WinGet. Restart DSH afterwards. Review a custom host pwshPath separately; Windows PowerShell 5.1 is preserved.',
-  unknownEffect: 'Changes may have occurred. Inspect the installation before trying again.', noRuntime: 'Runtime controls require an enabled shell row and the host runtime services.',
+  unknownEffect: 'Changes may have occurred. Inspect the installation before trying again.', noRuntime: 'Runtime controls require an enabled mode row and the host runtime services.',
   exitCode: 'Exit code', managedCount: 'Managed installations', gitCount: 'Git Bash installations', error: 'The operation failed.',
 }
 export const zh: Record<keyof typeof en, string> = {
   replacements: '选择由 OPS 替换的官方工具。', discovery: '选择可发现及始终加载的能力。', shell: '管理 Bash 和标准宿主 PowerShell 安装。',
+  modeMinimal: '模式增强：为 Minimal 会话提供 OPS 工具并替换官方 Windows shell。', modeStandard: '模式增强：为 Standard 会话替换官方 read、glob、grep 与 Windows shell。',
+  modePtc: '模式增强：为 PTC 会话提供 PTC SDK 并替换官方 Windows shell。', modeCordis: '模式增强：为 Cordis 会话替换官方 read、glob、grep 与 Windows shell。',
   unavailable: '请先用内置开关启用此行。编辑设置需要可写的宿主配置。', loading: '正在加载宿主设置…',
   save: '保存更改', reset: '恢复已保存值', saved: '已保存，宿主已重新加载此行。', rejected: '宿主拒绝了此次保存。请恢复最新已保存值后重新检查更改。', saving: '正在保存…',
   replacementsHelp: '所选工具改用 OPS 参数和输出契约。读取仅支持有界 UTF-8；搜索不包含隐藏文件和链接。取消勾选即可保留官方流程。',
@@ -34,7 +38,7 @@ export const zh: Record<keyof typeof en, string> = {
   install: '安装受管理的 Bash', remove: '删除受管理的 Bash', upgrade: '安装或升级 PowerShell',
   preview: '检查本次操作', cancel: '取消正在执行的操作', dismiss: '关闭预览', busy: '正在处理…',
   pwshHelp: '通过 WinGet 更新标准 PowerShell 7 安装，完成后需重启 DSH。宿主自定义 pwshPath 需要单独检查；Windows PowerShell 5.1 将保留。',
-  unknownEffect: '可能已经发生更改。再次尝试前，请检查安装状态。', noRuntime: '运行时控制需要启用 shell 行并提供宿主运行时服务。',
+  unknownEffect: '可能已经发生更改。再次尝试前，请检查安装状态。', noRuntime: '运行时控制需要启用模式行并提供宿主运行时服务。',
   exitCode: '退出码', managedCount: '受管理的安装', gitCount: 'Git Bash 安装', error: '操作失败。',
 }
 declare module '@deepseek-ai/dsh-client-ui-slots' { interface LocaleNamespaceMap { dshOps: keyof typeof en } }

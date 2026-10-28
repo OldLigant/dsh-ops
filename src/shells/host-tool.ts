@@ -1,7 +1,7 @@
 // Adapted from @deepseek-ai/dsh-tool-bash 0.2.0-rc.2 (MIT). See licenses/deepseek-harness/LICENSE.
 /** Host-compatible consumer over an OPS-owned executor; host services stay scoped and borrowed. */
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition } from '../adapter/dsh/types.js'
+import type { JsonSchemaNode } from '../adapter/dsh/types.js'
 import type { ShellContext, ShellBase, ShellCall, ShellPolicy, CreateShellExecution, StartShell, ShellExecution, ShellJobs, HostBashResult, HostShellDefinition } from './types.js'
 import { errorMessage } from './types.js'
 import { BashArgumentError, isBashArgumentError } from './argument-error.js'

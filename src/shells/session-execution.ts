@@ -1,6 +1,6 @@
 /** Resolve and confine every invocation using the current session authority. */
 import path from 'node:path'
-import type { ConfinedArgv } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv } from '../adapter/dsh/types.js'
 import type { ShellContext, ShellCall, ShellPolicy, ExecutionOptions, ShellExecution, ShellResult } from './types.js'
 import { bashToolDefinition, withBashStatus } from './tool.js'
 import { confinedBash } from '../bash-ipc.js'

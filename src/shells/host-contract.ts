@@ -1,6 +1,6 @@
 // Adapted from @deepseek-ai/dsh-tool-bash 0.2.0-rc.2 (MIT). See licenses/deepseek-harness/LICENSE.
 /** DSH 0.2.0-rc.2 shell DTO and rendering, with explicit OPS compatibility fields. */
-import type { JsonSchemaNode, JsonSchemaType } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode, JsonSchemaType } from '../adapter/dsh/types.js'
 import type { ShellResult, HostForeground, HostBashResult } from './types.js'
 import { bashFailure } from './failure.js'
 import { BASH_OUTPUT_SCHEMA, renderBashResult, withBashStatus } from './tool.js'

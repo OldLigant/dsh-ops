@@ -14,7 +14,7 @@
  */
 
 import fs from 'node:fs'
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode } from '../adapter/dsh/types.js'
 import type { ShellStream, ShellResult, SettledShellResult, ShellExecutorOptions, LegacyShellDefinition } from './types.js'
 import {
   BASH_ARGUMENTS,

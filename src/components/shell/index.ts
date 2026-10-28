@@ -1,4 +1,4 @@
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from '../../adapter/dsh/types.js'
 import { applyComponent } from '../../index.js'
 import { mountRuntimeSettings } from '../../settings/runtime-host.js'
 import { resolveConfig } from '../../config.js'

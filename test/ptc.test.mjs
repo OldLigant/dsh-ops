@@ -248,7 +248,7 @@ try {
     const assembled = await ctx.get('systemPrompt').assemble({scope:pure})
     assert.deepEqual(assembled.tools.map(t => t.name), ['run_code'])
     assert.ok(assembled.sections.some(s => s.text.includes('ops_batch')))
-    assert.ok(assembled.sections.some(s => s.name === 'dsh-ops:repository-tooling:ptc' && s.text.includes('typed Outcome')))
+    assert.ok(assembled.sections.some(s => s.name === 'dsh-ops:repository-tooling:mode-ptc' && s.text.includes('typed Outcome')))
     assert.equal((await ctx.get('systemPrompt').assemble({scope:native})).sections.some(s => s.text.includes('ops_batch')), false)
     const def = ctx.get('tools').get('ops_batch', pure)
     const wrongOwner = await def.execute({ action: 'plan', operations: [] }, { agent: ptcChild, signal: new AbortController().signal })

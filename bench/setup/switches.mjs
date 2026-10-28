@@ -1,10 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { OFFICIAL_REPLACEMENTS } from '../../lib/official-tool-catalog.js'
 import { LLM_OVERLAY, planEntryPatch } from './profile.mjs'
 import { ACTIVATION_KEYS, SWITCH_ROWS, parseRows, switchesFromDump } from '../lib/switches.mjs'
 
-export const SWITCH_USAGE = '  --switch <name>[=value] candidate only; repeat hide-official=all|read,glob,grep|false, ptc, panel, discovery, shell (booleans true/false)'
+export const SWITCH_USAGE = '  --switch <name>[=value] candidate only; repeat mode-minimal, mode-standard, mode-ptc, mode-cordis, discovery, compat, panel or tui (booleans true/false; compat=true keeps the official tools visible)'
 
 export function extractSwitches(argv) {
   const rest = [], switches = {}
@@ -15,15 +14,8 @@ export function extractSwitches(argv) {
     const equal = spec.indexOf('='), name = equal < 0 ? spec : spec.slice(0, equal), value = equal < 0 ? 'true' : spec.slice(equal + 1)
     if (!Object.hasOwn(SWITCH_ROWS, name)) throw new Error(`Unknown switch ${name}; available: ${Object.keys(SWITCH_ROWS).join(', ')}`)
     if (Object.hasOwn(switches, name)) throw new Error(`Duplicate switch ${name}`)
-    if (name !== 'hide-official') {
-      if (!['true', 'false'].includes(value)) throw new Error(`${name} requires true or false`)
-      switches[name] = { enabled: value === 'true' }
-    } else {
-      const names = Object.keys(OFFICIAL_REPLACEMENTS)
-      const selected = ['all', 'true'].includes(value) ? names : value === 'false' ? [] : value.split(',')
-      if (selected.some(item => !names.includes(item)) || new Set(selected).size !== selected.length) throw new Error(`hide-official requires all, false or a unique list from ${names.join(', ')}`)
-      switches[name] = { enabled: value !== 'false', replaceTools: [...selected].sort() }
-    }
+    if (!['true', 'false'].includes(value)) throw new Error(`${name} requires true or false`)
+    switches[name] = { enabled: value === 'true' }
   }
   return { argv: rest, switches }
 }
@@ -61,7 +53,7 @@ export function planSwitchPatch(text, switches, { force = false, composed = [] }
     if (row?.disabled !== undefined && row.disabled !== !wanted.enabled && !force) throw new Error(`${id}.disabled conflicts; use --force`)
     if (row && row.disabled !== undefined && typeof row.disabled !== 'boolean') throw new Error(`${id}.disabled requires a manual patch`)
     const config = { ...configMapping(inherited[0]?.config), ...configMapping(row?.config) }
-    const changes = name === 'hide-official' ? { replaceTools: wanted.replaceTools } : ACTIVATION_KEYS[name] && wanted.enabled ? { [ACTIVATION_KEYS[name]]: true } : {}
+    const changes = ACTIVATION_KEYS[name] && wanted.enabled ? { [ACTIVATION_KEYS[name]]: true } : {}
     for (const [key, value] of Object.entries(changes)) {
       if (row?.config?.[key] !== undefined && JSON.stringify(row.config[key]) !== JSON.stringify(value) && !force) throw new Error(`${id}.${key} conflicts; use --force`)
       config[key] = value

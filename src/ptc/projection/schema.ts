@@ -1,5 +1,5 @@
 /** Discriminated PTC envelopes feed the pinned host's validation and SDK generator. */
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode } from '../../adapter/dsh/types.js'
 const string: JsonSchemaNode = { type: 'string' }
 const integer: JsonSchemaNode = { type: 'integer' }
 const object = (properties: Record<string, JsonSchemaNode>, required: string[]): JsonSchemaNode =>

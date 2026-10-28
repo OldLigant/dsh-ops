@@ -1,5 +1,5 @@
 /** File capability data; no host services or registration side effects. */
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode } from '../adapter/dsh/types.js'
 import { DOCUMENT_PARAMETERS, DOCUMENT_DESCRIPTIONS, documentOutput } from './documents.js'
 import { STORAGE_REFERENCE } from './result.js'
 import type { ParameterSchema } from './types.js'

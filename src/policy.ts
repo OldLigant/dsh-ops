@@ -6,6 +6,16 @@ export const TOOLING_SECTION = 'dsh-ops:repository-tooling'
 // Legacy section name kept for consumers; the plugin no longer publishes it.
 export const HOST_SHELL_SECTION = 'dsh-ops:host-shell-policy'
 export const SECTION_ORDERS = Object.freeze({ [TOOLING_SECTION]: 3250 })
+/** Prompt-section suffix and order for one enhanced preset row. */
+export const MODE_SECTION_ORDERS: Readonly<Record<string, number>> = Object.freeze({
+  'mode-standard': 3250, 'mode-ptc': 3251, 'mode-cordis': 3252,
+})
+/**
+ * The prompt section one mode row publishes.
+ * @param suffix - the mode section suffix, for example `mode-standard`.
+ * @returns the section name.
+ */
+export function modeSectionName(suffix: string): string { return `${TOOLING_SECTION}:${suffix}` }
 export const TOOL_PREFIX = 'ops_'
 // The plugin's second layer executes POSIX commands; pwsh7 uses the host tool.
 export function publicToolName(rawName: string) { return `${TOOL_PREFIX}${rawName}` }

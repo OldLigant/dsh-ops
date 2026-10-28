@@ -49,18 +49,18 @@ await test('compare CLI returns 2 for different platforms and requires an explic
 })
 
 await test('composed component facts distinguish disabled, absent and unevaluated rows', () => {
-  const dump = '- id: dsh-ops-shell\n  disabled: false\n- id: dsh-ops-discovery\n  config:\n    enabled: false\n- id: dsh-ops-panel\n  disabled: process.platform !== "win32"\n'
+  const dump = '- id: dsh-ops-mode-standard\n  disabled: false\n- id: dsh-ops-discovery\n  config:\n    enabled: false\n- id: dsh-ops-panel\n  disabled: process.platform !== "win32"\n'
   const facts = componentFacts(dump)
-  assert.equal(facts.shell, 'enabled')
+  assert.equal(facts['mode-standard'], 'enabled')
   assert.equal(facts.discovery, 'disabled')
   assert.equal(facts.panel, 'unknown')
-  assert.equal(facts.ptc, 'absent')
+  assert.equal(facts.compat, 'absent')
   const arms = [{ side: 'base', profile: 'base' }, { side: 'cand', profile: 'cand' }]
   profileFingerprints(arms, { dump: () => dump })
   assert.deepEqual(arms[0].components, facts)
   assert.deepEqual(arms[1].components, facts)
-  assert.equal(componentFacts('bad: [').shell, 'unknown')
-  assert.equal(componentFacts('- id: dsh-ops-shell\n- id: dsh-ops-shell\n').shell, 'unknown')
+  assert.equal(componentFacts('bad: [').compat, 'unknown')
+  assert.equal(componentFacts('- id: dsh-ops-mode-standard\n- id: dsh-ops-mode-standard\n')['mode-standard'], 'unknown')
 })
 
 await test('Linux and macOS dry-run traverse setup without executing or writing profiles', async () => {
@@ -86,9 +86,9 @@ await test('Linux and macOS dry-run traverse setup without executing or writing 
 
 await test('host diagnostics cannot contaminate component configuration parsing', () => {
   const text = dumpProfileConfig({ kind: 'exe', file: 'fixture-dsh' }, 'bench', { run: () => ({
-    status: 0, stdout: '- id: dsh-ops-shell\n', stderr: 'Warning: diagnostic, not configuration\n',
+    status: 0, stdout: '- id: dsh-ops-mode-standard\n', stderr: 'Warning: diagnostic, not configuration\n',
   }) })
-  assert.equal(componentFacts(text).shell, 'enabled')
+  assert.equal(componentFacts(text)['mode-standard'], 'enabled')
   assert.doesNotMatch(text, /Warning/)
 })
 

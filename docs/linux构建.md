@@ -10,9 +10,10 @@ Linux 上**没有任何东西随安装包下载**：原生 worker 一律由本�
 
 | 组件 | Linux x64 | 说明 |
 | --- | --- | --- |
-| `dsh-ops/file` | 支持 | 4 个工具：`ops_inspect_local_file`、`ops_grep`、`ops_glob`、`ops_replace` |
-| `dsh-ops/ptc` | 支持 | `ops_batch`、`ops_result`；须显式启用 |
-| `dsh-ops/shell` | 支持 | `ops_bash` 使用宿主 bash；pwsh 仍仅限 Windows x64 |
+| `dsh-ops/mode-standard` | 支持 | 常驻 OPS 文件工具，`ops_bash` 使用宿主 bash；Linux 上不替换官方工具 |
+| `dsh-ops/mode-cordis` | 支持 | 与 Standard 相同的工具面，使用自己的路由段 |
+| `dsh-ops/mode-minimal` | 支持 | 动态加载入口与 `ops_bash` |
+| `dsh-ops/mode-ptc` | 支持 | PTC SDK：`ops_batch`、`ops_result` 及类型化目录 |
 
 ## 前置条件
 
@@ -176,10 +177,10 @@ Linux 上 `ops_bash` 开箱可用：`shell` 组件不随包提供 shell，而是
 bash（`config.bashPath` → `PATH` → `/bin/bash`、`/usr/bin/bash`、`/usr/local/bin/bash`）；
 受限模式必须由宿主沙箱落实约束，沙箱无法约束时拒绝执行，绝不无约束运行。
 
-要使用另一个 bash，在 shell 行显式指定：
+要使用另一个 bash，在模式行显式指定：
 
 ```yaml
-- id: dsh-ops-shell
+- id: dsh-ops-mode-standard
   config:
     bashPath: /usr/bin/bash
 ```
@@ -194,7 +195,7 @@ bash（`config.bashPath` → `PATH` → `/bin/bash`、`/usr/bin/bash`、`/usr/lo
 | `Unsupported runtime target linux-x64` | 该构建的 `PLATFORMS` 列表早于 Linux 支持 | 换用列出 `linux-x64` 的版本，或用已支持的检出构建 |
 | 编译成功后 `build:ptc` 报 `Error: Unsupported target` | stage 步骤拒绝了该 target | 同上；编译本身没有问题 |
 | `npm error code EBADPLATFORM` | 已发布的 tarball 声明 `os: ["win32"]` | 从检出目录（或 `npm pack`）经 `dsh plugin` 安装 |
-| file 工具无声消失、没有任何报错 | `resolveWorker()` 抛错后组件降级，而 `required` 缺省为 `false` | 给 `dsh-ops/file` 行设 `required: true`，让它变响 |
+| file 工具无声消失、没有任何报错 | `resolveWorker()` 抛错后组件降级，而 `required` 缺省为 `false` | 给 `dsh-ops/mode-standard` 行设 `required: true`，让它变响 |
 | `preflight` 阶段报 `Bad file descriptor (os error 9)` | 审计库或原子替换对 cap-std 在 Linux 上以 `O_PATH` 打开的目录句柄执行 `fsync`，内核拒绝 | 已在 `native/src/lib.rs` 修复；用 `npm run build:ptc` 重建 |
 | 被拒命令报成普通失败而非 `POLICY_DENIED` | 宿主提供的英文拒绝签名去匹配被本地化的 libc 消息 | bash 通道已固定 `LC_MESSAGES=C`；旧构建在非英文宿主上会命中此问题 |
 

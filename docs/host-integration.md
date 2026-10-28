@@ -6,6 +6,14 @@ These checks separate plugin configuration from host presentation and provider
 transport failures. They do not establish that an unobserved Desktop freeze or
 an old conversation has been repaired.
 
+## Source ownership
+
+`src/modes/` owns built-in preset policy only. Scoped Native publication and official-tool
+replacement controllers live in `src/publication/` and accept an explicit eligibility gate;
+Native result rendering/read evidence lives in `src/file/native/`, while typed PTC outcome
+projection lives in `src/ptc/projection/`. These are internal implementation paths, not public
+plugin-author import specifiers. Existing package component exports keep their semantics.
+
 ## A whitelist does not hide `ops_bash` (#380)
 
 In the pinned DSH tools API, `tools.restrict()` masks inherited registrations.
@@ -16,25 +24,26 @@ The fact that the same whitelist hides a globally registered file tool does not
 prove it also hides the session's shell. A read-only sandbox is also a filesystem
 permission mode, not a promise that every command tool is absent.
 
-To stop OPS Bash publication, set `publishBashTool: false` in its owning shell
+To stop OPS Bash publication, set `publishBashTool: false` in the owning mode
 row. Merge this setting into the existing config, preserving other keys:
 
 ```yaml
-- id: dsh-ops-shell
-  name: dsh-ops/shell
+- id: dsh-ops-mode-standard
+  name: dsh-ops/mode-standard
   config:
     publishBashTool: false
 ```
 
-Check every `dsh-ops/shell` row in the effective configuration: another enabled
-row can still publish its own tool. Apply the change through the host settings
-or profile lifecycle, then verify a new session's tool list. This switch controls
-OPS Bash; it does not disable independently installed command tools.
+Check every enabled mode row in the effective configuration: another row can
+still publish its own tool for sessions of its preset. Apply the change through
+the host settings or profile lifecycle, then verify a new session's tool list.
+This switch controls OPS Bash; it does not disable independently installed
+command tools.
 
 Per-preset command denial requires a host execution policy that covers owned
-tools, or a verified scoped mounting arrangement. Merely moving a shell row into
-a preset is not established as an isolation guarantee: the component also
-enumerates already live agents when mounted. Before relying on such an arrangement,
+tools, or a verified scoped mounting arrangement. Merely enabling a mode
+row is not established as an isolation guarantee: the row also enumerates
+already live agents when mounted. Before relying on such an arrangement,
 verify both allowed and disallowed presets, existing and newly created sessions,
 and actual invocation rejection. OPS does not rewrite the shared tool registry
 to make inherited restrictions act on owned tools.
@@ -86,13 +95,7 @@ use the PTC SDK loader under the host's `run_code` presentation. Check the scope
 assembled tools and presentation, not just a global registry or a prompt section
 name. An empty discovery section alone does not identify the cause.
 
-Host support declarations and component resource exports are addressed in
-[PR #395](https://github.com/T-Auto/dsh-ops/pull/395), with explicit 0.2.0-rc.2 and
-0.2.1-rc.2 coverage. The text-only PTC hook adaptation in
-[PR #390](https://github.com/T-Auto/dsh-ops/pull/390) is not full 0.2.1-rc.3 support.
-[PR #383](https://github.com/T-Auto/dsh-ops/pull/383) and #390 address unnecessary
-session work and append-time Bash publication. Check whether the installed version
-actually contains these changes before attributing its behavior to them.
+Host support declarations and component resource exports are covered by the current adapter boundary. The package declares and tests the bounded range `>=0.2.0-rc.2 <0.2.2-0`, including rc2, rc3, rc4 and the 0.2.1 stable line; the isolated host matrix compares the rc4 graph against the locked rc2 control. The text-only PTC hook adaptation is not used as the sole compatibility proof.
 
 The original #346 report also describes an enabled row and a stalled publication
 chain. The profile checks above do not prove that failure fixed. If the row is

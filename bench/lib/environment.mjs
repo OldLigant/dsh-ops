@@ -1,6 +1,7 @@
 import { parse } from 'yaml'
 
-const COMPONENTS = ['shell', 'file', 'ptc', 'discovery', 'panel', 'tui', 'hide-official']
+// Keep in sync with the component roster in src/components/defaults.ts.
+const COMPONENTS = ['mode-minimal', 'mode-standard', 'mode-ptc', 'mode-cordis', 'discovery', 'compat', 'panel', 'tui']
 
 /** Read configuration facts, never evaluate an expression or infer publication readiness. */
 export function componentFacts(text) {

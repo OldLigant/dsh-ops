@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Advanced tools on demand",
-    "description": "Discover allowed advanced file tools for the next model step. Always-loaded choices remain available when the discovery entry is disabled."
+    "title": "Enable dynamic tool loading",
+    "description": "Provide advanced tools that do not occupy the system prompt and let the AI discover them on demand. Recommended only with the official deepseek-flash model."
   }
 }

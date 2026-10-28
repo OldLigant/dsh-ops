@@ -1,27 +1,31 @@
-# Seven stable component IDs. Saved profile row overrides take precedence.
-# The shell row is enabled on every supported platform; the Loader keeps the
-# platform-defaults expression only for the rows that still need one.
-# File, PTC and discovery start enabled. Panel, TUI and official replacements are opt-in.
-# Keep the legacy file specifier so name-qualified saved overrides still match.
-# The removed background row remains a no-op compatibility export.
+# Eight stable component IDs. Saved profile row overrides take precedence.
+# The four enhanced-preset mode rows and discovery start enabled; the
+# Compatibility fallback, data capture and the TUI integration are opt-in.
+# Minimal publishes no routing section, so its row carries only the shell keys.
+# Legacy component modules (shell, file, ptc, hide-official, background) remain
+# exported but are no longer inserted here: a saved override for one of those
+# old specifiers still loads its legacy module, it just cannot match a new row.
 - insert:
-    - id: dsh-ops-shell
-      name: dsh-ops/shell
+    - id: dsh-ops-mode-minimal
+      name: dsh-ops/mode-minimal
       config:
         promptPolicy: true
         publishBashTool: true
-        shellPolicy: advise
-        allowSystemShellFallback: false
-    - id: dsh-ops-file
-      name: dsh-ops/file
+    - id: dsh-ops-mode-standard
+      name: dsh-ops/mode-standard
       config:
         promptPolicy: true
         required: false
-    - id: dsh-ops-ptc
-      name: dsh-ops/ptc
+    - id: dsh-ops-mode-ptc
+      name: dsh-ops/mode-ptc
       config:
         required: false
         alwaysLoaded: []
+    - id: dsh-ops-mode-cordis
+      name: dsh-ops/mode-cordis
+      config:
+        promptPolicy: true
+        required: false
     - id: dsh-ops-discovery
       name: dsh-ops/discovery
       config:
@@ -30,6 +34,9 @@
         alwaysLoaded: []
         required: false
         denyCredentialReads: true
+    - id: dsh-ops-compat
+      name: dsh-ops/compat
+      disabled: true
     - id: dsh-ops-panel
       name: dsh-ops/panel
       disabled: true
@@ -45,8 +52,3 @@
         maxSessions: 32
         maxActive: 128
         recentLimit: 8
-    - id: dsh-ops-hide-official
-      name: dsh-ops/hide-official
-      disabled: true
-      config:
-        replaceTools: []

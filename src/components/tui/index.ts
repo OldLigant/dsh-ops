@@ -1,6 +1,6 @@
 /** Optional read-only panel. Missing tuiPanels leaves only this component pending. */
-import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-session'
+import type { Context } from '../../adapter/dsh/types.js'
+import type {} from '../../adapter/dsh/types.js'
 import type { AttentionLevel } from '../../tui/attention.js'
 import { createActivityStore, resolveActivityConfig } from '../../tui/activity.js'
 import { createOpsPanel } from '../../tui/panel.js'

@@ -1,7 +1,8 @@
 /** Exact visible OPS registrations supply Native projections; no shared registry mutation. */
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import type { Context } from '@deepseek-ai/cordis'
+import type { ToolDefinition } from '../adapter/dsh/types.js'
+import type { Context } from '../adapter/dsh/types.js'
 import { withToolChange } from '../tool-changes.js'
+import { loadScopes } from '../adapter/dsh/host.js'
 interface Host { root?: object; emit?(name: 'tools/change'): unknown; get(name: 'tools'): { get(name: string, scope?: unknown): ToolDefinition | undefined } | undefined }
 export interface NativeProvider { definition: ToolDefinition; scope: unknown; active: boolean; inheritable: boolean; priority: number }
 interface Provider extends NativeProvider { publish(visible: boolean): void }
@@ -36,7 +37,7 @@ function refresh(owner: State, scope: unknown): void {
   })
 }
 export async function registerNativeProvider(ctx: Host, definitions: ToolDefinition[], register: (tool: ToolDefinition) => (() => void), options: { inheritable?: boolean; priority?: number } = {}): Promise<() => void> {
-  const { scopeOf } = await import('@deepseek-ai/dsh-scope')
+  const { scopeOf } = await loadScopes()
   return registerNativeProviderAtScope(ctx, scopeOf(ctx as Context), definitions, register, options)
 }
 /** Callers that already resolved the public scope API can commit synchronously. */

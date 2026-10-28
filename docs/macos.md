@@ -53,8 +53,8 @@ by default and resolves an explicit `bashPath`, then PATH and Homebrew/system lo
 - System Bash: `/bin/bash`
 
 ```yaml
-- id: dsh-ops-shell
-  name: dsh-ops/shell
+- id: dsh-ops-mode-standard
+  name: dsh-ops/mode-standard
   config:
     bashPath: /opt/homebrew/bin/bash   # Intel Homebrew: /usr/local/bin/bash
 ```

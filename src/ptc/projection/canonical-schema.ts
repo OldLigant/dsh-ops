@@ -1,5 +1,5 @@
 /** Typed fields describe canonical data, independently of the Native display projection. */
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode } from '../../adapter/dsh/types.js'
 import { DOCUMENT_FACTS, isDocumentTool } from '../../capabilities/documents.js'
 import { capability } from '../../capabilities/registry.js'
 import type { FileToolName, PtcToolName } from '../../capabilities/registry.js'

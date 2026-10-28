@@ -48,8 +48,8 @@ postinstall 下载器。macOS 的 `ops_bash` 默认开启，按显式 `bashPath`
 - 系统 Bash：`/bin/bash`
 
 ```yaml
-- id: dsh-ops-shell
-  name: dsh-ops/shell
+- id: dsh-ops-mode-standard
+  name: dsh-ops/mode-standard
   config:
     bashPath: /opt/homebrew/bin/bash   # Intel Homebrew: /usr/local/bin/bash
 ```

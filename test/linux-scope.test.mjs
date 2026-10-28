@@ -148,8 +148,8 @@ await test('a foreign-only runtime directory is not a cross-platform substitute'
 await test('package.json, the resolver and the plugin manifest declare the same scope', async () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json'), 'utf8'))
   const components = PLUGIN.contributes?.['x-components'] ?? []
-  const ptc = components.find(component => component.id === 'dsh-ops-ptc')
-  assert.ok(ptc, 'the PTC component row is missing from contributes.x-components')
+  const ptc = components.find(component => component.id === 'dsh-ops-mode-ptc')
+  assert.ok(ptc, 'the PTC mode row is missing from contributes.x-components')
   assert.deepEqual([...PLATFORMS], ['win32-x64', 'linux-x64', 'darwin-arm64', 'darwin-x64'], 'only the approved target pairs are supported')
   assert.deepEqual(manifest.os, ['win32', 'linux', 'darwin'])
   assert.deepEqual(ptc.platforms, ['win32', 'linux', 'darwin'])

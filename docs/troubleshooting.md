@@ -98,7 +98,7 @@ Symptom, in a read-only or workspace-write session: `EXECUTOR_UNAVAILABLE: ops_b
 
 What to do:
 
-- Remove `bashPath` (and `allowSystemShellFallback`) from the `dsh-ops/shell` row so the bundled pinned bash is used; if that payload is missing, run `npx --yes dsh-ops@latest provision-shells --bash`.
+- Remove `bashPath` (and `allowSystemShellFallback`) from the mode row so the bundled pinned bash is used; if that payload is missing, run `npx --yes dsh-ops@latest provision-shells --bash`.
 - Or switch the session to `danger-full-access`, where `bashPath` runs directly.
 - Check with the profile's own copy: `node "<profile>\node_modules\dsh-ops\bin\dsh-ops.mjs" ladder --config <file>` reports `restricted: yes/no` for the resolved bash.
 
@@ -226,7 +226,7 @@ No. It is FastCtx's reusable shared process, started by earlier versions with th
 macOS ships no `@dsh-ops/bash-darwin-*` or `@dsh-ops/pwsh-darwin-*`
 package, and no portable upstream bash exists for macOS. Select the shell the
 plugin should use with `bashPath` (for example `/opt/homebrew/bin/bash` on Apple
-Silicon, `/usr/local/bin/bash` on Intel, or `/bin/bash`) on the `dsh-ops/shell`
+Silicon, `/usr/local/bin/bash` on Intel, or `/bin/bash`) on a mode
 row. PowerShell 7 can be provisioned, but the host disables its `pwsh-sandbox` and
 `tool-pwsh` rows outside Windows, so no pwsh tool appears on macOS.
 

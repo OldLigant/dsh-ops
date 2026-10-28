@@ -53,8 +53,8 @@ Rust >=1.88 is required. Build uses `cargo build --release --locked` against
 `native/Cargo.toml`. No install scripts download binaries. On Windows, enable the
 session toolchain before building; do not add multi-version toolchains to global PATH.
 
-The `dsh-ops/ptc` bundle row is enabled by default after #170; existing explicit
-profile disablement is preserved. Config accepts `required` (default false), an optional
+The `dsh-ops/mode-ptc` row is enabled by default; existing explicit profile
+disablement is preserved. Config accepts `required` (default false), an optional
 absolute `binaryPath`, `allowedTools`, and `alwaysLoaded`; see [SDK loading](ptc-sdk-loading.md). `DSH_OPS_WORKER_BIN` can
 select a build; otherwise the component uses `runtime/<platform>-<arch>/dsh-ops-worker[.exe]` before `native/target/release`.
 Published 0.3.1 packages include the runtime bytes

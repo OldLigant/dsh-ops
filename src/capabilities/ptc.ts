@@ -1,5 +1,5 @@
 /** Batch and PTC result schemas; the same result capability also owns a Native projection. */
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode } from '../adapter/dsh/types.js'
 import { STORAGE_REFERENCE, RESULT_PAGE_PARAMETERS } from './result.js'
 import type { ParameterSchema } from './types.js'
 

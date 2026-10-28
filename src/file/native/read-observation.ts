@@ -1,6 +1,6 @@
 import { lstatSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
-import type { ToolDefinition, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolExecution, ToolExecutionResult } from '../../adapter/dsh/types.js'
 import { publicToolName } from '../../policy.js'
 
 export interface ReadObservation {

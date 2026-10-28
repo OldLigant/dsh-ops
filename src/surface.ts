@@ -1,6 +1,6 @@
 /** The tool surface a presentation probe reads, shared by both PTC rows. */
-import type { Agent } from '@deepseek-ai/dsh-agent'
-import type ToolRuntime from '@deepseek-ai/dsh-tools'
+import type { Agent } from './adapter/dsh/types.js'
+import type { ToolRuntime } from './adapter/dsh/types.js'
 
 /**
  * The part of a scope view this module reads: the names and definitions a scope can see.

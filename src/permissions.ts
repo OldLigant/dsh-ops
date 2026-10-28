@@ -1,5 +1,5 @@
 /** Shared DSH permission vocabulary. Model inputs never select an authority mode. */
-import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import type { SandboxExecutionPolicy, SandboxMode } from './adapter/dsh/types.js'
 
 export type AuthorityPolicy = Pick<SandboxExecutionPolicy, 'mode' | 'workspaceRoot'>
 export const MODES: readonly SandboxMode[] = ['read-only', 'workspace-write', 'danger-full-access']

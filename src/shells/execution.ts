@@ -1,6 +1,6 @@
 /** Live Bash command over the host subprocess service; no service registration. */
 import { Buffer } from 'node:buffer'
-import type { SubprocessHandle, SubprocessOutputReader, SubprocessOutputRead } from '@deepseek-ai/dsh-subprocess'
+import type { SubprocessHandle, SubprocessOutputReader, SubprocessOutputRead } from '../adapter/dsh/types.js'
 import type { ShellExecutorOptions, ShellExecutionSpec, ShellCall, ShellExecution, ShellResult, ShellStream } from './types.js'
 import { DEFAULT_MAX_OUTPUT_BYTES, DEFAULT_MAX_SPILL_BYTES, shellEnvOverrides } from './constants.js'
 import { formatBashSpawnError } from './spawn-error.js'

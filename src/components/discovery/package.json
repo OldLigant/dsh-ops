@@ -1,6 +1,6 @@
 {
   "name": "dsh-ops-discovery",
-  "description": "Scope-owned progressive discovery of reviewed advanced OPS tools.",
+  "description": "Provide advanced tools that do not occupy the system prompt and let the AI discover them on demand.",
   "icon": "./icon.png",
   "type": "module"
 }

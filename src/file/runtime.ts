@@ -1,5 +1,5 @@
-import type { Context } from '@deepseek-ai/cordis'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { Context } from '../adapter/dsh/types.js'
+import type { ToolDefinition } from '../adapter/dsh/types.js'
 import type { FileToolName } from '../capabilities/registry.js'
 import { WORKER_TIMEOUT_MS } from '../worker-protocol.js'
 import { publicToolName } from '../policy.js'
@@ -9,7 +9,7 @@ import { resultDefinition, invokeResult } from './result.js'
 import { registerNativeProvider } from './result-provider.js'
 import { safeDisposeAll } from '../teardown.js'
 import { invoke, failure } from './worker.js'
-import { createNativeReadDedup } from '../modes/native/read-dedup.js'
+import { createNativeReadDedup } from './native/read-dedup.js'
 
 type Execution = Parameters<ToolDefinition['execute']>[1]
 type NativeToolName = FileToolName | 'result'

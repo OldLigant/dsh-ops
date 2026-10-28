@@ -2,7 +2,7 @@
 import { constants } from 'node:fs'
 import { lstat, open } from 'node:fs/promises'
 import path from 'node:path'
-import type { ToolDefinition, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolExecutionToken } from '../adapter/dsh/types.js'
 import type { HostBashResult, ShellCall } from './types.js'
 import { renderHostBash } from './host-contract.js'
 

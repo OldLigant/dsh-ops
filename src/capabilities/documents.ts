@@ -1,5 +1,5 @@
 /** Document schemas describe their bounded observation scope; registration remains catalogue-owned. */
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode } from '../adapter/dsh/types.js'
 import type { ParameterSchema } from './types.js'
 import { STORAGE_REFERENCE } from './result.js'
 const string: JsonSchemaNode = { type: 'string' }

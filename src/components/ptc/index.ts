@@ -1,4 +1,4 @@
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from '../../adapter/dsh/types.js'
 import { apply as mount } from '../../ptc/index.js'
 import { resolvePtcConfig } from '../../config.js'
 import { editable, settingsConfig } from '../../settings/schema.js'

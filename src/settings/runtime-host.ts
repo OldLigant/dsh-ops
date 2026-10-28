@@ -1,8 +1,8 @@
 /** Mount only package-owned descriptors; the host gateway supplies operator admission. */
 import path from 'node:path'
-import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-typert-registry'
-import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
+import type { Context } from '../adapter/dsh/types.js'
+import type {} from '../adapter/dsh/types.js'
+import type { SubprocessRuntime } from '../adapter/dsh/types.js'
 import { dshHome, PACKAGE_ROOT } from '../paths.js'
 import { RuntimeActions } from './runtime-actions.js'
 import type { RuntimeProcessRunner } from './runtime-actions.js'

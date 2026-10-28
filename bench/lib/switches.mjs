@@ -1,7 +1,14 @@
 import { parse } from 'yaml'
 
-export const SWITCH_ROWS = Object.freeze(Object.fromEntries(['hide-official', 'ptc', 'panel', 'discovery', 'shell'].map(name => [name, `dsh-ops-${name}`])))
-export const ACTIVATION_KEYS = Object.freeze({ discovery: 'enabled', panel: 'capture', shell: 'publishBashTool' })
+// Component rows of the fallback bundle. The four mode rows publish an enhanced
+// built-in preset and start enabled; "compat" is the inverse switch — on keeps the
+// official tools visible, off lets enabled mode rows hide what they replace.
+export const SWITCH_ROWS = Object.freeze(Object.fromEntries([
+  'mode-minimal', 'mode-standard', 'mode-ptc', 'mode-cordis', 'discovery', 'compat', 'panel', 'tui',
+].map(name => [name, `dsh-ops-${name}`])))
+// Legacy activation keys still found in saved profile overrides. Mode rows use the
+// row switch (disabled), and Compatibility mode has no configuration key.
+export const ACTIVATION_KEYS = Object.freeze({ discovery: 'enabled', panel: 'capture' })
 export const parseRows = text => parse(text, { customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: value => ({ expression: value }) }] })
 
 /** Configuration facts only; readiness is established separately by setup's host probe. */
@@ -20,8 +27,6 @@ export function switchesFromDump(text) {
     const enabled = row.disabled === true || activation === false ? false
       : knownConfig && (row.disabled === undefined || row.disabled === false) && (activation === undefined || activation === true) ? true : null
     switches[name] = { enabled }
-    if (name === 'hide-official') switches[name].replaceTools = Array.isArray(row.config?.replaceTools)
-      && row.config.replaceTools.every(value => typeof value === 'string') ? [...row.config.replaceTools].sort() : null
   }
   return switches
 }

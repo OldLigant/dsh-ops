@@ -11,7 +11,7 @@ import { DISCOVERY_CONFIG_KEYS } from '../lib/discovery/config.js'
 import { resolvePanelConfig } from '../lib/components/panel/index.js'
 import { resolveTuiConfig } from '../lib/components/tui/index.js'
 import { publicToolName, renderToolingPolicy } from '../lib/policy.js'
-import { decodeContinuation } from '../lib/modes/ptc/continuation.js'
+import { decodeContinuation } from '../lib/ptc/projection/continuation.js'
 import { componentChecks, defaultChecks } from '../scripts/lib/catalogue-checks.mjs'
 import { assert, test, report, withTempDir } from './lib/harness.mjs'
 import { requireWorker, callTool, envelopeOf } from './lib/boundary.mjs'
@@ -53,8 +53,8 @@ await test('component declaration checks reject entry, target, tool, default and
   const failed = values => componentChecks(values).filter(([okay]) => !okay)
   assert.deepEqual(failed(rows), [])
   for (const [id, key, value] of [
-    ['shell', 'entry', 'wrong'], ['file', 'targets', []], ['discovery', 'tools', []],
-    ['panel', 'tools', ['rogue']], ['tui', 'defaultEnabled', true], ['hide-official', 'retainedOfficialCommand', { win32: 'bash' }],
+    ['mode-minimal', 'entry', 'wrong'], ['mode-ptc', 'targets', []], ['discovery', 'tools', []],
+    ['panel', 'tools', ['rogue']], ['tui', 'defaultEnabled', true], ['compat', 'retainedOfficialCommand', { win32: 'bash' }],
   ]) {
     const changed = structuredClone(rows)
     changed.find(row => row.id === `dsh-ops-${id}`)[key] = value

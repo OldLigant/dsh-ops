@@ -22,6 +22,7 @@ import { componentChecks, defaultChecks } from './lib/catalogue-checks.mjs'
 import { parse as parseYaml } from 'yaml'
 import {
   IN_PROCESS_TOOLS,
+  MODE_SECTION_ORDERS,
   TOOLING_SECTION,
   TOOL_PREFIX,
   publicToolName,
@@ -33,6 +34,7 @@ import { resolveTuiConfig } from '../lib/components/tui/index.js'
 import { resolvePanelConfig } from '../lib/components/panel/index.js'
 import { PTC_API_TOOLS, definition } from '../lib/ptc/contract.js'
 import { resolveConfig, resolveDiscoveryConfig } from '../lib/config.js'
+import { resolveModeConfig } from '../lib/modes/config.js'
 import { COMPONENTS, componentEntry, componentEnabled } from '../lib/components/defaults.js'
 import { resolveHidingConfig } from '../lib/official-tool-hiding.js'
 import { evaluatePluginCompatibility } from '@deepseek-ai/dsh-app-boot'
@@ -229,12 +231,12 @@ if (typeof patch === 'string' && fs.existsSync(path.join(PACKAGE_ROOT, patch))) 
     check(Array.isArray(document), 'the bundle patch is a list of loader patch entries')
     try {
       const composed = composeBundle([document])
-      check(composed.length === 7, 'the host composes seven rows without skipped patch targets')
-    } catch (error) { check(false, 'the host composes seven rows without skipped patch targets', String(error?.message ?? error)) }
+      check(composed.length === COMPONENTS.length, `the host composes ${COMPONENTS.length} rows without skipped patch targets`)
+    } catch (error) { check(false, `the host composes ${COMPONENTS.length} rows without skipped patch targets`, String(error?.message ?? error)) }
     const rows = Array.isArray(document)
       ? document.flatMap((entry) => (Array.isArray(entry?.insert) ? entry.insert : []))
       : []
-    check(rows.length === 7, 'the bundle declares exactly seven components')
+    check(rows.length === COMPONENTS.length, `the bundle declares exactly ${COMPONENTS.length} components`)
     check(!rows.some(candidate => candidate?.name === `${pkg.name}/background`), 'the bundle no longer inserts the removed background component')
     for (const component of COMPONENTS) {
       const row = rows.find(candidate => candidate?.name === componentEntry(component))
@@ -242,10 +244,9 @@ if (typeof patch === 'string' && fs.existsSync(path.join(PACKAGE_ROOT, patch))) 
       if (!row) continue
       check((row.disabled === true) === !componentEnabled(component, process.platform), `${component} has its documented enablement default`)
       const resolve = component === 'discovery' ? resolveDiscoveryConfig : component === 'tui' ? resolveTuiConfig
-        : component === 'ptc' ? resolvePtcConfig
-          : component === 'hide-official' ? resolveHidingConfig
-            : component === 'panel' ? resolvePanelConfig
-              : resolveConfig
+        : component === 'compat' ? (() => ({}))
+          : component === 'panel' ? resolvePanelConfig
+            : resolveModeConfig
       try {
         resolve(row.config); check(true, `${component} config is valid`)
         for (const fact of defaultChecks(component, row.config, resolve)) check(...fact)
@@ -319,10 +320,11 @@ for (const [index, entry] of namespaces.slice(1).entries()) {
 
 const sections = manifestRaw.contributes?.['x-prompt-sections'] ?? []
 const sectionNames = sections.map((section) => section.name)
+const expectedSections = Object.keys(MODE_SECTION_ORDERS).map(suffix => `${TOOLING_SECTION}:${suffix}`)
 check(
-  sectionNames.length === 3 && ['file', 'shell', 'ptc'].every(component => sectionNames.includes(`${TOOLING_SECTION}:${component}`)),
+  sectionNames.length === expectedSections.length && expectedSections.every(name => sectionNames.includes(name)),
   'the declared prompt sections match lib/policy.js',
-  `declared ${sectionNames.join(', ')} vs policy ${TOOLING_SECTION}`,
+  `declared ${sectionNames.join(', ')} vs policy ${expectedSections.join(', ')}`,
 )
 check(
   sections.every((section) => typeof section.order === 'number' && Number.isFinite(section.order)),
@@ -494,10 +496,10 @@ if (display !== undefined) {
 }
 
 /** Payload the published package must carry, as `files` entries or paths they cover. */
-const ptc = manifestRaw.contributes?.['x-components']?.find(c => c.id === 'dsh-ops-ptc')
+const ptc = manifestRaw.contributes?.['x-components']?.find(c => c.id === 'dsh-ops-mode-ptc')
 const components = manifestRaw.contributes?.['x-components'] ?? []
 for (const fact of componentChecks(components)) check(...fact)
-check(ptc?.entry === 'dsh-ops/ptc' && ptc?.defaultEnabled === true, 'native PTC enhancement is enabled by default; presentation stays scoped')
+check(ptc?.entry === 'dsh-ops/mode-ptc' && ptc?.defaultEnabled === true, 'native PTC enhancement is enabled by default; presentation stays scoped')
 check(JSON.stringify(ptc?.tools) === JSON.stringify([...PTC_API_TOOLS, 'load_sdk'].map(publicToolName)), 'PTC declaration matches the generated tool contract')
 check(PTC_API_TOOLS.every(t => definition(t, () => {}).parameters.type === 'object'), 'PTC schemas remain structured')
 check(JSON.stringify(pkg.os) === '["win32","linux","darwin"]' && JSON.stringify(pkg.cpu) === '["x64","arm64"]' &&
@@ -506,10 +508,10 @@ check(JSON.stringify(pkg.os) === '["win32","linux","darwin"]' && JSON.stringify(
   'Supported exact targets are Windows x64, Linux x64 and macOS arm64/x64; Intel Mac is supported')
 /** Every component states the platforms it really serves, so a Linux claim cannot ride along. */
 const platformClaims = id => manifestRaw.contributes?.['x-components']?.find(c => c.id === id)?.platforms
-check(JSON.stringify(platformClaims('dsh-ops-shell')) === '["win32","linux","darwin"]',
-  'the shell component supports the declared targets using host bash on POSIX')
-check(JSON.stringify(platformClaims('dsh-ops-file')) === '["win32","linux","darwin"]',
-  'the file component supports the exact worker target matrix')
+check(JSON.stringify(platformClaims('dsh-ops-mode-standard')) === '["win32","linux","darwin"]',
+  'the standard mode supports the declared targets using host bash on POSIX')
+check(JSON.stringify(platformClaims('dsh-ops-mode-ptc')) === '["win32","linux","darwin"]',
+  'the PTC mode supports the exact worker target matrix')
 check(platformClaims('dsh-ops-background') === undefined,
   'the removed background component is no longer declared')
 check(JSON.stringify(platformClaims('dsh-ops-panel')) === '["win32","linux","darwin"]',
@@ -560,8 +562,11 @@ check(
   typeof pkg.engines?.dsh === 'string' && pkg.engines.dsh === pkg.peerDependencies?.['@deepseek-ai/dsh'],
   'engines.dsh and the legacy DSH peer declare the same compatibility range',
 )
-for (const version of ['0.2.0-rc.2', '0.2.1-rc.2']) {
+for (const version of ['0.2.0-rc.2', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1']) {
   check(evaluatePluginCompatibility(pkg, {}, version) === undefined, `the declared range accepts DSH ${version}`)
+}
+for (const version of ['0.2.0-rc.1', '0.2.2-rc.1', '0.3.0']) {
+  check(evaluatePluginCompatibility(pkg, {}, version) !== undefined, `the declared range rejects DSH ${version}`)
 }
 for (const component of [...COMPONENTS, 'background']) {
   const resource = pkg.exports?.[`./${component}/icon`]

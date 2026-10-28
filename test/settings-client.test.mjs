@@ -24,7 +24,7 @@ function capture(file) {
 }
 const external = name => name === '@deepseek-ai/cordis' ? Cordis : name === '@deepseek-ai/dsh-client-ui-slots' ? slots : require(name)
 
-await test('shipped browser entry stays lazy and binds exactly three settings pages to the real host registry', async () => {
+await test('shipped browser entry stays lazy and binds five settings pages to the real host registry', async () => {
   const definition = capture(path.join(PACKAGE_ROOT, 'lib/client.js')), imports = []
   assert.equal(definition.id, 'dsh-ops'); assert.equal(typeof definition.factory, 'function')
   assert.deepEqual(imports, [])
@@ -71,7 +71,10 @@ await test('shipped browser entry stays lazy and binds exactly three settings pa
     assert.equal(result.ok, false); assert.match(result.error.message, /abort/i)
     assert.equal(dictionaries.namespace, 'dshOps')
     assert.deepEqual(Object.keys(dictionaries.values.en).sort(), Object.keys(dictionaries.values.zh).sort())
-    assert.deepEqual(ctx.get('slots').entries('plugins.row.config').map(value => value.options.key).sort(), ['dsh-ops#dsh-ops-discovery', 'dsh-ops#dsh-ops-hide-official', 'dsh-ops#dsh-ops-shell'])
+    assert.deepEqual(ctx.get('slots').entries('plugins.row.config').map(value => value.options.key).sort(), [
+      'dsh-ops#dsh-ops-discovery', 'dsh-ops#dsh-ops-mode-cordis', 'dsh-ops#dsh-ops-mode-minimal',
+      'dsh-ops#dsh-ops-mode-ptc', 'dsh-ops#dsh-ops-mode-standard',
+    ])
     assert.equal(document.querySelectorAll('style[data-dsh-ops-settings]').length, 1)
     await fiber.dispose()
     assert.equal(ctx.get('slots').entries('plugins.row.config').length, 0)
@@ -94,13 +97,18 @@ await test('browser bundler rejects Node externals and dynamic imports before wr
   assert.equal(loaded.value, 42)
 }))
 
-await test('browser package declares an optional client facet while the default bundle preserves the legacy file row', () => {
+await test('browser package declares an optional client facet while the default bundle preserves the standard-mode carrier row', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json')))
   assert.equal(pkg.exports['./client'].default, './lib/client.js')
   assert.equal(pkg.dsh.client.platform, 'web')
   assert.ok(pkg.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-plugin-manager'))
+  // The carrier renames the standard-mode row; the bundle keeps its explicit specifier.
+  assert.match(fs.readFileSync(path.join(PACKAGE_ROOT, 'cordis.patch.yml'), 'utf8'), /id: dsh-ops-mode-standard\s+name: dsh-ops\/mode-standard\s/)
+  for (const component of ['mode-minimal', 'mode-standard', 'mode-ptc', 'mode-cordis', 'compat']) {
+    assert.equal(pkg.exports[`./${component}`].default, `./lib/components/${component}/index.js`, component)
+  }
+  // A saved legacy row stays loadable even though the bundle no longer inserts it.
   assert.equal(pkg.exports['./file'].default, './lib/components/file/index.js')
-  assert.match(fs.readFileSync(path.join(PACKAGE_ROOT, 'cordis.patch.yml'), 'utf8'), /id: dsh-ops-file\s+name: dsh-ops\/file\s/)
 })
 dom.window.close()
 report('settings-client')

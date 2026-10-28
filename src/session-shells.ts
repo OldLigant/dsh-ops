@@ -1,7 +1,7 @@
 /** Plugin-owned bash layers; permission changes never mutate the shared registry. */
 import path from 'node:path'
-import type { Context, Fiber } from '@deepseek-ai/cordis'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Context, Fiber } from './adapter/dsh/types.js'
+import type { Agent } from './adapter/dsh/types.js'
 import type { ResolvedConfig } from './config.js'
 import type { ShellResolution } from './shells/paths.js'
 import type { HostShellDefinition, ShellJobs, ShellResult } from './shells/types.js'
@@ -134,7 +134,15 @@ interface Entry {
   published?: boolean; generation?: number
 }
 
-export function mountSessionBash(ctx: Context, config: Pick<ResolvedConfig, 'publishBashTool'>, shells: { bash: ShellResolution }) {
+/** A row's per-Agent permission to publish its bash layer. */
+export interface BashGate {
+  /** Whether the row owns this Agent's mode. */
+  allows(agent: Agent): boolean
+  /** Subscribe to gate changes; the callback runs a full reconcile. */
+  watch?(notify: () => void): () => void
+}
+
+export function mountSessionBash(ctx: Context, config: Pick<ResolvedConfig, 'publishBashTool'>, shells: { bash: ShellResolution }, gate: BashGate = { allows: () => true }) {
   if (!config.publishBashTool) return
   const bash = shells.bash
   if (!bash.available) {
@@ -155,6 +163,7 @@ export function mountSessionBash(ctx: Context, config: Pick<ResolvedConfig, 'pub
   let jobs: ShellJobs | undefined
   const allowed = (agent: Agent) => {
     if (!ready || stopped || !agent?.session) return false
+    if (!gate.allows(agent)) return false
     try {
       const policy = ctx.get('sandboxPolicy')?.resolve({ session: agent.session })
       return policy !== undefined && MODES.includes(policy.mode) && (policy.mode === 'danger-full-access' || !!ctx.get('sandbox')?.confine)
@@ -284,7 +293,15 @@ export function mountSessionBash(ctx: Context, config: Pick<ResolvedConfig, 'pub
       return prompt.assemble(options)
     })
   })
-  ctx.on('session/event', (_session, event) => { if (event.type === 'sandbox/mode') scheduleReconcile() })
+  ctx.on('session/event', (_session, event) => {
+    const type = (event as { type: string }).type
+    // A sandbox-mode change only re-resolves authority; republishing every sibling
+    // definition would break the stable-definition contract. A preset selection can
+    // change which Agent this row serves, so it must rebuild definitions.
+    if (type === 'sandbox/mode') scheduleReconcile()
+    else if (type === 'agent-preset/selected') scheduleReconcile(true)
+  })
+  if (gate.watch) ctx.effect(() => gate.watch!(() => { void scheduleReconcile(true) }), 'dsh-ops: bash mode observer')
   ctx.inject(['sandbox'], () => { scheduleReconcile() })
   ctx.inject(['jobs'], jobsCtx => {
     jobs = jobsCtx.get('jobs') as ShellJobs | undefined

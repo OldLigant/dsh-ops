@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { ConfigPageForm, PluginConfigViewProps } from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
-import type { SettingsPathOpView } from '@deepseek-ai/dsh-settings/types'
+import type { ConfigPageForm, PluginConfigViewProps } from '../adapter/dsh/types.js'
+import type { SettingsPathOpView } from '../adapter/dsh/types.js'
 import type { Translator } from './locales.js'
 export type SettingsProps = PluginConfigViewProps & { t: Translator }
 export const strings = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []

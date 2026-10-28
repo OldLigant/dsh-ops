@@ -3,18 +3,28 @@
 The complete install, update and remove flow, plus every option of the command-line interface.
 
 Before replacing a running installation, read [Upgrade and uninstall safely](upgrading.md)
-for stopping the host, registry-policy failures and the 0.3.x-to-0.4.x migration checklist.
+for stopping the host, registry-policy failures and the 0.4.x-to-0.5.x migration checklist.
 
-## 0.4.0 candidate and component defaults
+## 0.5.0 candidate and component defaults
 
-This checkout is an unreleased candidate; acceptance uses the approved OPS 0.3.x BM-01 comparator and file/discovery BM-03 budget, with Bash still resident and the full total reported separately.
-See [candidate status](release-0.4.0.md). The seven rows enable file/PTC/discovery and shell on all
-the supported platforms, and leave panel/TUI/replacements off in fresh profiles. Existing explicit
-switches and name-qualified settings survive upgrade. Only read_files/discover_tools are initially resident
-in Native, plus the available Bash (the pinned payload on Windows, the distribution Bash on POSIX);
-documents load on demand. The PTC catalogue has 18 typed APIs, with its
-own configured pool and SDK loader. [Configuration](configuration-reference.md) describes built-in
-forms and the optional browser carrier. Use [manual acceptance](manual-validation.md) for upgrades.
+This checkout is an unreleased candidate. The bundle declares eight component rows: four enhanced
+built-in preset modes (`dsh-ops/mode-minimal`, `dsh-ops/mode-standard`, `dsh-ops/mode-ptc`,
+`dsh-ops/mode-cordis`), dynamic loading (`dsh-ops/discovery`), Compatibility mode
+(`dsh-ops/compat`), data inspection (`dsh-ops/panel`) and TUI integration (`dsh-ops/tui`).
+Fresh profiles enable the four mode rows and discovery; Compatibility, panel and TUI stay off.
+Existing explicit switches survive upgrade, but a saved override for a removed `shell`, `file`,
+`ptc` or `hide-official` row must be deleted; it matches no row in the new bundle.
+
+A mode row publishes OPS tools only for sessions composed from its preset and hides the official
+tools it replaces: `read`, `glob` and `grep` in Standard and Cordis, and the Windows official
+shell (`pwsh`/`pwsh_persistent` → `ops_bash`) in every enabled mode. Hiding only happens while
+the OPS counterpart is visible in the same scope. Compatibility mode keeps the official tools
+exposed without unloading a row. Standard and Cordis publish the resident OPS file tools, Minimal
+sessions receive the dynamic-loading entry while the discovery row is enabled, and PTC mode
+publishes its 18-API typed catalogue with its own configured pool and SDK loader; documents load on
+demand.
+[Configuration](configuration-reference.md) describes the built-in forms and the optional browser
+carrier. Use the [upgrade notes](upgrading.md#moving-from-04x-to-05x) for migration details.
 
 
 ---
@@ -44,11 +54,11 @@ node bin/native-runtime.mjs stage --platform darwin-arm64
 node bin/native-runtime.mjs stage --platform darwin-x64
 ```
 
-Then point the shell row at a bash the machine already has:
+Then point a mode row at a bash the machine already has:
 
 ```yaml
-- id: dsh-ops-shell
-  name: dsh-ops/shell
+- id: dsh-ops-mode-standard
+  name: dsh-ops/mode-standard
   disabled: false
   config:
     bashPath: /opt/homebrew/bin/bash   # Intel Homebrew: /usr/local/bin/bash
@@ -85,7 +95,7 @@ dsh-ops bash-runtime remove            # preview only
 dsh-ops bash-runtime remove --yes      # remove receipt-marked managed versions
 ```
 
-`git` and `managed` print an absolute `bashPath` configuration for the host config editor; they do not edit a profile or PATH. Reload the shell component after applying the selection or installing/removing its runtime. Stop running Bash jobs before removal. Removal refuses links in the managed path and preserves unmarked versions, system Git and PowerShell. `install` reuses the pinned download and checksum checks from `provision-shells --bash`; `--dry-run` makes no download or change. Windows restricted modes still require the pinned MSYS IPC compatibility match. A different Git Bash remains a full-access choice; approval never repairs an incompatible restricted runtime. Linux/macOS continue using host Bash.
+`git` and `managed` print an absolute `bashPath` configuration for the host config editor; they do not edit a profile or PATH. Reload the mode row after applying the selection or installing/removing its runtime. Stop running Bash jobs before removal. Removal refuses links in the managed path and preserves unmarked versions, system Git and PowerShell. `install` reuses the pinned download and checksum checks from `provision-shells --bash`; `--dry-run` makes no download or change. Windows restricted modes still require the pinned MSYS IPC compatibility match. A different Git Bash remains a full-access choice; approval never repairs an incompatible restricted runtime. Linux/macOS continue using host Bash.
 
 ### One-command npm installation
 
@@ -111,11 +121,7 @@ The ordinary DSH CLI cannot manage the reserved `desktop` profile; do not confus
 
 ### Host compatibility and display metadata
 
-The package declares **DSH 0.2.0-rc.2 and 0.2.1-rc.2** explicitly in both `engines.dsh`
-and the legacy DSH peer dependency. DSH 0.2.1 uses `engines.dsh` in preference to peers.
-Other prereleases, including 0.2.1-rc.3, are outside this declaration: accepting its
-text-only prompt hook does not establish compatibility with all presentation and
-official-tool replacement APIs.
+The package declares the bounded DSH compatibility range `>=0.2.0-rc.2 <0.2.2-0` in both `engines.dsh` and the legacy DSH peer dependency. This includes `0.2.0-rc.2`, `0.2.1-rc.2`, `0.2.1-rc.3`, `0.2.1-rc.4` and the `0.2.1` stable line, while rejecting `0.2.0-rc.1`, `0.2.2` prereleases and `0.3.0`. The rc4 host graph is validated separately in the isolated host matrix; the plugin's native adapter preserves the existing Cordis tool, prompt, policy, subprocess, PTC and UI behavior.
 
 The bundle icon comes from the root manifest. Each component exports its own
 `dsh-ops/<component>/icon` and `locale/*.json`; DSH 0.2.1 does not use a component's
@@ -134,10 +140,11 @@ dsh --profile ops-test --dump-config-schema
 ```
 
 Use the intended package version or a packed checkout instead of `@latest` when
-testing an unpublished change. The dump must contain the seven `dsh-ops-*` rows
-(`shell`, `file`, `ptc`, `discovery`, `panel`, `tui`, `hide-official`) with no
-`patch: entry ... not found` diagnostic. Saved profile overrides remain effective;
-new opt-in rows remain disabled until enabled. CI's manifest validation runs the
+testing an unpublished change. The dump must contain the eight `dsh-ops-*` rows
+(`mode-minimal`, `mode-standard`, `mode-ptc`, `mode-cordis`, `discovery`, `compat`,
+`panel`, `tui`) with no `patch: entry ... not found` diagnostic. Saved profile overrides on
+those rows remain effective; an override for a removed `shell`, `file`, `ptc` or
+`hide-official` row must be deleted. New opt-in rows remain disabled until enabled. CI's manifest validation runs the
 same public host patch composer and rejects skipped overrides, alongside each
 component's config validator. A regression removes an override target and verifies
 the resulting warning fails the gate.
@@ -253,7 +260,7 @@ The host job list and waiting view use `description` as the task label. Both `ba
 
 ## Process reclamation
 
-This version starts no long-lived server process: the native file worker is owned by the file component and stops with it. Earlier versions with the background component started `fastctx serve` clients and could leave a shared FastCtx `runtime-host`; that process exits on its own after about ten minutes without clients. This release does not sweep processes left by older versions; do not kill them by process-name sweeps.
+This version starts no long-lived server process: the native file worker is owned by the enabled mode rows (and the discovery row) and stops with them. Earlier versions with the background component started `fastctx serve` clients and could leave a shared FastCtx `runtime-host`; that process exits on its own after about ten minutes without clients. This release does not sweep processes left by older versions; do not kill them by process-name sweeps.
 
 ---
 

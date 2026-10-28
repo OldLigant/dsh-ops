@@ -1,6 +1,6 @@
 /** Inspect public presentation before publishing a replacement. Inspection is
  * marked by exact context identity and never becomes a provider request. */
-import type { AssembleContext, PromptAssembly, SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
+import type { AssembleContext, PromptAssembly, SystemPrompt } from './adapter/dsh/types.js'
 
 const probes = new WeakSet<AssembleContext>()
 export function isPresentationProbe(context: AssembleContext): boolean { return probes.has(context) }

@@ -1,18 +1,31 @@
 # Component reference
-What each of the seven components publishes, with parameters and permission requirements.
+What each of the eight components publishes, with parameters and permission requirements.
 ---
 
 ## Components at a glance
 
+Third-party presets should use [`dsh-ops/integration`](integration-api.md) rather than mounting
+one of the four built-in identities. It adds independently configured tools and `ops_status`
+diagnostics, while external Native plugins may use the [provider contract](external-provider.md).
+
 | Row `name` | Description | Default | Published tools |
 | --- | --- | --- | --- |
-| `dsh-ops/shell` | Prefer bash as the terminal, with host PowerShell for operations bash cannot cover | On (all platforms) | `ops_bash`; host `pwsh` keeps its own executor |
-| `dsh-ops/file` | Bounded Rust file retrieval and text output for the model | On | `ops_read_files`; advanced tools load through discovery |
-| `dsh-ops/ptc` | Typed file APIs and progressive SDK in PTC sessions | On | `ops_inspect_local_file`, `ops_result`, `ops_load_sdk`; advanced APIs load through the SDK |
+| `dsh-ops/mode-minimal` | Enhanced Minimal preset: dynamic loading and the Windows official shell replacement | On | `ops_bash`; no resident file tool |
+| `dsh-ops/mode-standard` | Enhanced Standard preset: resident file surface, official read/glob/grep and Windows shell replacement | On | `ops_read_files`, `ops_inspect_local_file`, `ops_glob`, `ops_grep`, `ops_result`, `ops_bash` |
+| `dsh-ops/mode-ptc` | Enhanced PTC preset: typed SDK and Windows shell replacement | On | PTC SDK APIs (the 18-API catalogue), `ops_bash`; no Native file replacement |
+| `dsh-ops/mode-cordis` | Enhanced Cordis preset: resident file surface, official read/glob/grep and Windows shell replacement | On | Same as Standard, with its own routing section |
 | `dsh-ops/discovery` | Advanced Native tools on demand | On | `ops_discover_tools` |
+| `dsh-ops/compat` | Compatibility mode: every official tool stays visible | Off | None; the OPS tools of enabled mode rows stay published |
 | `dsh-ops/panel` | Data capture, off at the switch: new conversations write `<cwd>/.dsh-ops/panel/<sessionId>.json` plus the viewer `panel.html` | Row off; capture defaults true | None; see the [configuration reference](configuration-reference.md) |
 | `dsh-ops/tui` | Read-only current-session OPS sidebar | Off | None; see [sidebar guide](tui-panel.md) |
-| `dsh-ops/hide-official` | Select read/glob/grep alternatives; unselected official tools remain visible | Off | None |
+
+The `dsh-ops/discovery` row owns `ops_discover_tools` and the advanced capabilities for every mode.
+A mode row publishes only for sessions composed from its built-in preset. It hides the official tools
+it replaces — `read`, `glob` and `grep` in Standard and Cordis, and the Windows official shell
+(`pwsh`/`pwsh_persistent` → `ops_bash`) in every mode — but only while the OPS counterpart is
+visible in the same scope. Compatibility mode keeps the official tools exposed instead. The former
+`dsh-ops/shell`, `dsh-ops/file`, `dsh-ops/ptc` and `dsh-ops/hide-official` modules remain as
+unsupported legacy exports for old profiles and are not part of the bundle.
 
 The former `dsh-ops/background` component (FastCtx background jobs: `ops_run`, `ops_run_background`, `ops_job_output`, `ops_job_list`, `ops_job_kill`) has been removed. A profile row that still names it loads as a no-op: it accepts any config, publishes nothing, and logs one warning that the row can be deleted.
 
@@ -43,9 +56,13 @@ The shared catalogue has 20 entries. The generated PTC SDK contains 18 APIs: 15 
 
 ---
 
-## `dsh-ops/file` — file tools
+## Preset modes — file tools
 
-Only the bounded multi-file reader `ops_read_files` is resident; `ops_inspect_local_file`, including hex reading, is discoverable. The advanced contracts below are activated through [tool discovery](discovery.md) or explicit always-loaded choices. Routing lists only the tools currently published.
+Standard and Cordis publish the resident OPS file surface: `ops_read_files`,
+`ops_inspect_local_file`, `ops_glob`, `ops_grep` and `ops_result`. The Minimal preset publishes
+no resident file tool; its sessions receive the dynamic-loading entry and activate advanced contracts
+through [tool discovery](discovery.md). PTC mode exposes the same capabilities through the typed SDK.
+Routing lists only the tools currently published in that scope.
 
 File paths resolve relative to the DSH session cwd. `ops_read_files` takes a `files` array of paths with independent 1-based offsets and limits; single-file operations take `path`. The Native reference pager accepts the original reference `root`. No file tool accepts `workspace`, `cwd` or `file_path` aliases. Text tools are UTF-8 first; document tools use their own bounded format/encoding contracts. glob and grep do not traverse symlinks, junctions, reparse points, hidden files or `.git`.
 
@@ -134,9 +151,10 @@ Each reader separates scan, page, display and reference-capture completeness. A 
 
 ---
 
-## `dsh-ops/ptc` — native batches and result references
+## PTC mode — native batches and result references
 
-Available by default, with tools published only in pure PTC sessions. Explicit profile disablement is preserved.
+The `dsh-ops/mode-ptc` row is on by default and publishes these tools only in sessions composed from
+the PTC preset. Its host row switch preserves explicit disablement and its configured pool.
 
 ### `ops_batch`
 
@@ -171,9 +189,11 @@ Bounded session-owned result references: PTC can put object rows; Native file to
 
 ---
 
-## `dsh-ops/shell` — terminal and shells
+## Preset modes — terminal and shells
 
-Routing: **toolkit → bash → host PowerShell**.
+Routing: **toolkit → bash → host PowerShell**. Every enabled mode replaces the Windows official shell
+(`pwsh`/`pwsh_persistent`) with `ops_bash` while that counterpart is visible; POSIX sessions already
+run the host's own bash.
 
 On Windows x64 the install carries the pinned Bash payload as an optional dependency of the main package (`@dsh-ops/bash-win32-x64@0.2.1`, PortableGit `v2.56.0.windows.2`, GNU bash 5.3.15); `bashPath` can select Git Bash instead, and `dsh-ops bash-runtime install` repairs or installs a managed copy when the payload is absent. POSIX hosts use the system Bash and ship no payload. PowerShell stays host-selected.
 
@@ -213,9 +233,13 @@ The plugin renders routing guidance from what it actually published. The excerpt
 
 ---
 
-## `dsh-ops/hide-official` — per-tool replacements
+## Compatibility mode — official tools stay visible
 
-Disabled by default, with `replaceTools: []`. Explicit selections switch the model to these reviewed read/search workflows. Their names, arguments and results differ from the host tools; calls are never translated or forwarded under an official name. A `run_code` presentation (PTC) is never masked: its transport is not gated, while the selected official tools stay refused in that scope. The replacement contract covers native presentation only.
+Standard and Cordis replace the official `read`, `glob` and `grep` with these reviewed read/search
+workflows; every enabled mode replaces the Windows official shell. Their names, arguments and results
+differ from the host tools; calls are never translated or forwarded under an official name. A
+`run_code` presentation (PTC) is never masked: its transport is not gated, while the replaced
+official names stay refused in that scope. The replacement contract covers native presentation only.
 
 <!-- hide-official-scope:start -->
 | Official tool | OPS alternative | Reviewed purpose |
@@ -229,15 +253,31 @@ Disabled by default, with `replaceTools: []`. Explicit selections switch the mod
 - **glob:** the host accepts one pattern string and matches a bare basename at any depth, including hidden and ignored files. OPS accepts an array of globs relative to `path`; `*.ts` matches only the top level, so use `**/*.ts` for recursion. OPS supports exclusions and paging, and does not traverse symlinks, reparse points, hidden files or `.git`. The search coverage and ordering are not identical.
 - **grep:** the host accepts a single glob filter and ripgrep regular expressions. OPS uses Rust regex, an array of relative globs, optional context and output modes, plus bounded paged coverage. Read its completion/truncation fields; a partial scan is not an exhaustive negative result. Host overflow artifacts and OPS paging are different workflows.
 
-All OPS calls keep their own session-cwd base, permission checks and output contracts. Selecting an alternative does not broaden authority. Choose only the workflows that fit the task; leave a tool unselected when its host-specific coverage is needed.
+All OPS calls keep their own session-cwd base, permission checks and output contracts. Replacing an official tool does not broaden authority.
 
-`write`, `edit`, and `str_replace_editor` are deliberately unavailable as selections. OPS write/edit require an observed `expectedRevision` and CAS publication; host write and replace-all edit do not share that contract. A similarly named registration is not evidence of compatibility. Shells, `run_code`, delegation, jobs, media and third-party tools also remain visible without a warning list.
+`write`, `edit`, and `str_replace_editor` are deliberately not replaced. OPS write/edit require an observed `expectedRevision` and CAS publication; host write and replace-all edit do not share that contract. A similarly named registration is not evidence of compatibility. Shells, `run_code`, delegation, jobs, media and third-party tools also remain visible without a warning list.
 
-Only the selected OPS counterparts must be registered and visible as exact OPS-owned Native definitions. A foreign registration with the same name or identical schema cannot satisfy readiness. Ownership changes are checked even when the schema bytes stay unchanged; Native shadows created by the OPS PTC adapter retain their tracked ownership. PTC data APIs alone cannot replace a Native tool. An unavailable selected counterpart blocks the affected scope with `READINESS_BLOCKED` and lifts that scope's replacement masks; healthy scopes and inherited authority restrictions retain their masks. Removing a selection, unloading, or disabling the component restores the corresponding official tool. Old `strict`/`scope`/`additionalOfficialTools` values are validated but ignored until explicit `replaceTools` selections are supplied.
+The `dsh-ops/compat` row is **disabled by default** and accepts no configuration. Enabling it keeps
+every official tool exposed and callable while OPS tools stay published, and lifts the per-scope
+hiding without unloading any row; disabling it restores hiding. There is no per-tool `replaceTools`
+selection in this version — the removed `dsh-ops/hide-official` row is a legacy module outside the
+bundle, and a saved override for it must be deleted. Its old
+`strict`/`scope`/`additionalOfficialTools` values are validated only by that module and grant no
+hiding authority here.
 
-The resident `ops_read_files` is not the reviewed replacement for `read`. Before selecting `read`, configure discovery `alwaysLoaded: [inspect_local_file]` or ensure that single-file capability is already active in that Native scope. Apply the same readiness rule to `glob` and `grep`. Internal presentation inspection lets discovery publish these configured tools during startup; ordinary prompt assembly and dispatch remain blocked until they are ready.
+Hiding is per agent scope and only applies while the OPS counterpart is registered and visible as an
+exact OPS-owned Native definition. A foreign registration with the same name or identical schema does
+not qualify, and a missing counterpart leaves the official tool exposed instead of blocking prompt
+assembly. Ownership changes are rechecked even when the schema bytes stay unchanged; Native shadows
+created by the OPS PTC adapter retain their tracked ownership. Disabling a mode row or enabling
+Compatibility mode restores the corresponding official tool.
 
-The component exports StandardSchemaV1 validation together with public JSON schema descriptors for built-in host row forms. Optional browser multiselect pages require the explicit client carrier migration; see [configuration](configuration-reference.md).
+The resident `ops_read_files` is not the counterpart for `read`; Standard and Cordis publish
+`ops_inspect_local_file`, `ops_glob` and `ops_grep` as the reviewed counterparts.
+
+Mode rows export StandardSchemaV1 validation together with public JSON schema descriptors for the
+built-in host row forms. Optional browser settings pages require the explicit client carrier
+migration; see [configuration](configuration-reference.md).
 
 
 ---

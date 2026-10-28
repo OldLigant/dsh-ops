@@ -50,14 +50,19 @@ await test('the real Cordis loader consumes the component Standard Schema valida
     assert.match(error.issues[0].message, /unsupported tool: "write"/)
   } finally { await ctx.fiber.dispose() }
 })
-await test('the disabled component patch also defaults to an empty selection', () => {
+await test('the disabled Compatibility row is the shipped replacement default', () => {
   const document = parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'cordis.patch.yml'), 'utf8'), {
     customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: value => value }],
   })
-  const hiding = document.flatMap(item => item.insert).find(row => row.name === 'dsh-ops/hide-official')
-  assert.equal(hiding.disabled, true)
-  assert.deepEqual(hiding.config, { replaceTools: [] })
-  assert.deepEqual(resolveHidingConfig(hiding.config), { replaceTools: [] })
+  const rows = document.flatMap(item => item.insert)
+  // The legacy hide-official row is no longer inserted; Compatibility is one
+  // switch, so the bundle must not carry a per-tool replacement selection.
+  assert.equal(rows.some(row => row.name === 'dsh-ops/hide-official'), false)
+  const compat = rows.find(row => row.id === 'dsh-ops-compat')
+  assert.ok(compat, 'the Compatibility row is missing')
+  assert.equal(compat.disabled, true, 'Compatibility is off by default')
+  assert.equal(Object.hasOwn(compat.config ?? {}, 'replaceTools'), false, 'the bundle selects no per-tool replacements')
+  assert.deepEqual(resolveHidingConfig({ replaceTools: [] }), { replaceTools: [] }, 'the retained legacy validator still resolves an empty selection')
   for (const platform of ['win32', 'linux', 'darwin']) {
     assert.deepEqual(platformSurface(platform), { retainedCommand: platform === 'win32' ? 'pwsh' : 'bash', shellDefaultEnabled: true })
   }

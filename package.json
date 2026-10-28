@@ -1,6 +1,6 @@
 {
   "name": "dsh-ops",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "publishConfig": {
     "access": "public"
   },
@@ -92,6 +92,43 @@
     "./hide-official/package.json": "./lib/components/hide-official/package.json",
     "./hide-official/locale/*.json": "./lib/components/hide-official/locale/*.json",
     "./hide-official/icon": "./lib/components/hide-official/icon.png",
+    "./mode-minimal": {
+      "default": "./lib/components/mode-minimal/index.js"
+    },
+    "./mode-minimal/package.json": "./lib/components/mode-minimal/package.json",
+    "./mode-minimal/locale/*.json": "./lib/components/mode-minimal/locale/*.json",
+    "./mode-minimal/icon": "./lib/components/mode-minimal/icon.png",
+    "./mode-standard": {
+      "default": "./lib/components/mode-standard/index.js"
+    },
+    "./mode-standard/package.json": "./lib/components/mode-standard/package.json",
+    "./mode-standard/locale/*.json": "./lib/components/mode-standard/locale/*.json",
+    "./mode-standard/icon": "./lib/components/mode-standard/icon.png",
+    "./mode-ptc": {
+      "default": "./lib/components/mode-ptc/index.js"
+    },
+    "./mode-ptc/package.json": "./lib/components/mode-ptc/package.json",
+    "./mode-ptc/locale/*.json": "./lib/components/mode-ptc/locale/*.json",
+    "./mode-ptc/icon": "./lib/components/mode-ptc/icon.png",
+    "./mode-cordis": {
+      "default": "./lib/components/mode-cordis/index.js"
+    },
+    "./mode-cordis/package.json": "./lib/components/mode-cordis/package.json",
+    "./mode-cordis/locale/*.json": "./lib/components/mode-cordis/locale/*.json",
+    "./mode-cordis/icon": "./lib/components/mode-cordis/icon.png",
+    "./compat": {
+      "default": "./lib/components/compat/index.js"
+    },
+    "./compat/package.json": "./lib/components/compat/package.json",
+    "./compat/locale/*.json": "./lib/components/compat/locale/*.json",
+    "./compat/icon": "./lib/components/compat/icon.png",
+    "./integration": {
+      "types": "./lib/integration/index.d.ts",
+      "default": "./lib/integration/index.js"
+    },
+    "./adapter/dsh": {
+      "default": "./lib/adapter/dsh/host.js"
+    },
     "./client": {
       "default": "./lib/client.js"
     }
@@ -163,7 +200,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",
-    "@deepseek-ai/dsh": "0.2.0-rc.2 || 0.2.1-rc.2"
+    "@deepseek-ai/dsh": ">=0.2.0-rc.2 <0.2.2-0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
@@ -224,6 +261,6 @@
   },
   "engines": {
     "node": "^22.19 || >=24",
-    "dsh": "0.2.0-rc.2 || 0.2.1-rc.2"
+    "dsh": ">=0.2.0-rc.2 <0.2.2-0"
   }
 }

@@ -2,7 +2,7 @@
 
 ## 测试前的准备
 
-Linux / macOS：使用当前平台构建的 worker；`setup --dry-run` 会说明跳过 Windows PowerShell pin、PSModulePath、Windows Bash IPC 和随包 Windows shell 检查的原因。当前 shell 行已支持各平台，不要再从早期 Windows-only 默认值推断配置。模型 sweep 仍需自己的 OpenAI 兼容服务与凭据；`tools` 自检不调用模型。
+Linux / macOS：使用当前平台构建的 worker；`setup --dry-run` 会说明跳过 Windows PowerShell pin、PSModulePath、Windows Bash IPC 和随包 Windows shell 检查的原因。组件行在三个平台都受支持，不要再从早期 Windows-only 默认值推断配置。模型 sweep 仍需自己的 OpenAI 兼容服务与凭据；`tools` 自检不调用模型。
 
 Linux / macOS: build the worker for the current host. `setup --dry-run` explains skipped Windows-only checks. `ab`, `compare`/`report`, `panel` and `tools` use the same entry point on every platform. A model sweep needs your own OpenAI-compatible endpoint; the tools self-check needs no model. Every sweep now fingerprints the composed profiles even without `--seal`, recording platform and component configuration in the arm summaries. `enabled` is a configuration fact, not proof of tool readiness; unresolved expressions remain `unknown`.
 
@@ -74,11 +74,11 @@ Model flags set the actual shared route, with the condition patch applied after 
 ### 组件开关 / Component switches
 
 ```console
-node bench/cli.mjs setup --switch hide-official=all --switch ptc --switch panel=false --dry-run
-node bench/cli.mjs setup --switch hide-official=read,grep --switch discovery --switch shell
+node bench/cli.mjs setup --switch mode-standard --switch mode-ptc=false --switch compat=false --switch panel=false --dry-run
+node bench/cli.mjs setup --switch mode-minimal=false --switch mode-cordis --switch discovery --switch compat
 ```
 
-`--switch` 可重复，支持 `hide-official`、`ptc`、`panel`、`discovery`、`shell`；省略值等同 `true`，普通开关也接受 `false`。`hide-official=all` 只选择已有替代实现的 `read,glob,grep`，也可指定不重复的子集或 `false`。只修改 candidate 的 `cordis.patch.yml`；baseline 不写入组件行。每次 setup 只改明确指定的开关，不自动搜索组合。
+`--switch` 可重复，支持 `mode-minimal`、`mode-standard`、`mode-ptc`、`mode-cordis`、`discovery`、`compat`、`panel`、`tui`；省略值等同 `true`。四个模式行与 discovery 默认启用；`compat` 是反向开关：`true` 表示兼容模式开启、官方工具保持可见，因此默认的 `false` 才让已启用模式隐藏被替换的官方工具。只修改 candidate 的 `cordis.patch.yml`；baseline 不写入组件行。每次 setup 只改明确指定的开关，不自动搜索组合。
 
 写入幂等；本地已有相反值需 `--force`，继承的字面配置键会保留。动态表达式、非映射配置、重复行和无法安全编辑的目标形态需手工处理，`--force` 也不会猜测。`--dry-run` 打印请求的行和值，不启动宿主、不修改 profile。
 
@@ -86,7 +86,7 @@ node bench/cli.mjs setup --switch hide-official=read,grep --switch discovery --s
 
 实际配置写入摘要及封存 `run.json` 的 `arms.cand.switches`，报告头和 panel 显示 candidate 开关。baseline 的空集合与 candidate 的非空集合属于正常 A/B；两份运行的 candidate 集合不同则 compare 退出 `2`，列出差异，不合并 Δ。未求值配置记录 `null`，旧数据缺失开关元数据仍可读取为未知；这些字段是配置事实，不证明组件已经发布到会话。
 
-Repeat `--switch` to set candidate components. Values default to `true`; booleans also accept `false`. `hide-official=all` expands only the implemented `read,glob,grep` replacements, or select a unique subset. Setup edits only the candidate patch, preserves inherited literal configuration, and changes only named switches. Conflicting local values require `--force`; dynamic or unsafe shapes require manual edits even with force. Dry-run prints the requested values without launching the host or writing profiles.
+Repeat `--switch` to set candidate components. Values default to `true`. Supported names are `mode-minimal`, `mode-standard`, `mode-ptc`, `mode-cordis`, `discovery`, `compat`, `panel` and `tui`; the four mode rows and discovery are on by default. `compat` is the inverse switch: `true` turns Compatibility mode on and keeps the official tools visible, so the default `false` lets enabled modes hide the tools they replace. Setup edits only the candidate patch, preserves inherited literal configuration, and changes only named switches. Conflicting local values require `--force`; dynamic or unsafe shapes require manual edits even with force. Dry-run prints the requested values without launching the host or writing profiles.
 
 Real setup verifies composed configuration and runs one bounded headless readiness turn, which may call the configured model. Missing successful completion, host errors and `READINESS_BLOCKED` fail setup with the #207 diagnostic before a sweep starts. This does not substitute for Desktop validation. Summaries and sealed `arms.cand.switches` retain effective configuration; report headers and the panel show it. Comparisons reject different candidate switch sets with exit 2, while the baseline's empty set is expected. Unevaluated configuration and historical missing metadata remain unknown, without implying publication readiness. Switch combinations are selected explicitly and are outside the CI gate.
 

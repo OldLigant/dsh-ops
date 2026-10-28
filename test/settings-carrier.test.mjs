@@ -8,6 +8,7 @@ import * as atomic from '@deepseek-ai/dsh-atomic-write'
 import { ClientModuleRegistry } from '@deepseek-ai/dsh-client-modules'
 import { carrierPreview, applyCarrier } from '../lib/settings/carrier-write.js'
 import { CLIENT_BUNDLE, profileContext } from '../lib/settings/carrier-plan.js'
+import { COMPONENTS } from '../lib/components/defaults.js'
 import { componentProfile } from './lib/component-profile.mjs'
 import { shutdown } from './lib/host.mjs'
 import { assert, test, report, PACKAGE_ROOT, waitFor } from './lib/harness.mjs'
@@ -18,18 +19,17 @@ const manifest = fixture => path.join(fixture.profile.dir, 'package.json')
 const rows = fixture => boot.composeEntries([boot.readProfilePatches('dsh', profileContext(location(fixture)))])
 const backups = fixture => fs.readdirSync(fixture.profile.dir).filter(name => name.startsWith('.dsh-ops-settings-backup-'))
 const graph = ctx => ctx.get('clientModules').graph().entries.map(row => row.id)
+// The saved rows use ids (not names) so the carrier rename of the standard row
+// cannot orphan them; comments and an unresolved expression must survive byte for byte.
 const source = `# Preserve operator comments and expression semantics.
-- id: dsh-ops-file
-  name: dsh-ops/file
+- id: dsh-ops-mode-standard
   disabled: false
   config:
     extraGuidance: keep operator text
     configUpdateVersion: 2
-- id: dsh-ops-shell
-  name: dsh-ops/shell
+- id: dsh-ops-mode-ptc
   disabled: !!js process.platform !== 'win32'
 - id: dsh-ops-panel
-  name: dsh-ops/panel
   disabled: true
   config:
     capture: false
@@ -52,33 +52,39 @@ await test('default subpath preserves profiles; optional carrier survives reload
     assert.deepEqual(graph(runtime.ctx), [], 'legacy subpath cannot advertise browser pages')
     await shutdown(runtime.ctx)
     const preview = await carrierPreview(host, location(fixture))
-    assert.equal(preview.changedQualifiers, 1)
+    // Only the bundle name changes; the profile patch text is not rewritten.
+    assert.deepEqual(preview.files.filter(file => file.path === fixture.profile.patchPath).map(file => [file.before, file.after]), [[source, source]])
     assert.equal(fs.readFileSync(manifest(fixture), 'utf8'), originalManifest)
     assert.equal(fs.readFileSync(fixture.profile.patchPath, 'utf8'), source)
     assert.deepEqual(backups(fixture), [])
     // A stop between these two writes remains a valid legacy profile.
-    fs.writeFileSync(fixture.profile.patchPath, preview.files[0].after)
+    fs.writeFileSync(fixture.profile.patchPath, preview.files.find(file => file.path === fixture.profile.patchPath).after)
     assert.deepEqual(rows(fixture), before)
     fs.writeFileSync(fixture.profile.patchPath, source)
     const backup = await applyCarrier(host, preview)
     assert.equal(fs.readFileSync(path.join(backup, 'package.json'), 'utf8'), originalManifest)
     assert.equal(fs.readFileSync(path.join(backup, 'cordis.patch.yml'), 'utf8'), source)
-    assert.match(fs.readFileSync(fixture.profile.patchPath, 'utf8'), /# Preserve operator comments/)
-    assert.match(fs.readFileSync(fixture.profile.patchPath, 'utf8'), /!!js/)
+    assert.equal(fs.readFileSync(fixture.profile.patchPath, 'utf8'), source)
     assert.deepEqual(rows(fixture), preview.afterRows)
     const resolution = await boot.createRuntimeResolution({ installAnchor: fixture.profile.installAnchor, home: fixture.profile.home,
       profile: boot.loadProfileDirectory('dsh', fixture.profile.dir, fixture.profile.installAnchor) })
     assert.ok(resolution.localPackageNames.includes('dsh-ops'), 'the real runtime resolver accepts the nested bundle')
-    assert.equal(rows(fixture).length, 8, 'seven OPS rows plus unchanged foreign row')
+    assert.equal(rows(fixture).length, COMPONENTS.length + 1, 'eight OPS rows plus unchanged foreign row')
+    // The only composition change is the carrier row's name: the standard mode
+    // row now points at the package root, whose entry applies exactly that mode.
+    const standardBefore = before.find(row => row.id === 'dsh-ops-mode-standard')
+    const standardAfter = preview.afterRows.find(row => row.id === 'dsh-ops-mode-standard')
+    assert.equal(standardAfter.name, 'dsh-ops')
+    assert.deepEqual({ ...standardAfter, name: standardBefore.name }, standardBefore)
     assert.equal(JSON.parse(fs.readFileSync(manifest(fixture), 'utf8')).description, metadata.description)
     assert.deepEqual(JSON.parse(fs.readFileSync(manifest(fixture), 'utf8')).dsh.profile.bundles, [CLIENT_BUNDLE])
     for (let restart = 0; restart < 2; restart++) {
       runtime = await fixture.boot()
       await runtime.ctx.plugin(ClientModuleRegistry)
       assert.deepEqual(graph(runtime.ctx), ['dsh-ops'])
-      assert.equal(runtime.entries().length, 7)
-      assert.equal(runtime.entries().find(entry => entry.options.id === 'dsh-ops-file').options.config.extraGuidance, 'keep operator text')
-      const entry = runtime.entries().find(entry => entry.options.id === 'dsh-ops-file')
+      assert.equal(runtime.entries().length, COMPONENTS.length)
+      const entry = runtime.entries().find(entry => entry.options.id === 'dsh-ops-mode-standard')
+      assert.equal(entry.options.config.extraGuidance, 'keep operator text')
       await entry.update({ disabled: true }); await runtime.ctx.loader.await()
       await waitFor(() => graph(runtime.ctx).length === 0)
       await entry.update({ disabled: false }); await runtime.ctx.loader.await()
@@ -88,15 +94,15 @@ await test('default subpath preserves profiles; optional carrier survives reload
     await assert.rejects(carrierPreview(host, location(fixture)), /one-time migration/)
   } finally { await shutdown(runtime.ctx) }
 })
-await test('an explicitly disabled file carrier remains off until the builtin row switch enables it', async () => {
-  const fixture = componentProfile('carrier-disabled', bundle, [{ id: 'dsh-ops-file', name: 'dsh-ops/file', disabled: true, config: { configUpdateVersion: 2 } }])
+await test('an explicitly disabled standard-mode carrier remains off until the builtin row switch enables it', async () => {
+  const fixture = componentProfile('carrier-disabled', bundle, [{ id: 'dsh-ops-mode-standard', disabled: true, config: { configUpdateVersion: 2 } }])
   const plan = await carrierPreview(host, location(fixture))
   await applyCarrier(host, plan)
   const runtime = await fixture.boot()
   try {
     await runtime.ctx.plugin(ClientModuleRegistry)
     assert.deepEqual(graph(runtime.ctx), [])
-    const entry = runtime.entries().find(entry => entry.options.id === 'dsh-ops-file')
+    const entry = runtime.entries().find(entry => entry.options.id === 'dsh-ops-mode-standard')
     assert.equal(entry.disabled, true)
     await entry.update({ disabled: false }); await runtime.ctx.loader.await()
     await waitFor(() => graph(runtime.ctx).includes('dsh-ops'))
@@ -108,16 +114,16 @@ await test('stale preview, duplicate OPS rows and higher-priority named override
   fs.appendFileSync(fixture.profile.patchPath, '\n# concurrent edit\n')
   await assert.rejects(applyCarrier(host, plan), /changed after the preview/)
   assert.deepEqual(backups(fixture), [])
-  const duplicate = componentProfile('carrier-duplicate', bundle, [{ insert: [{ id: 'dsh-ops-file', name: 'dsh-ops/file' }] }])
-  await assert.rejects(carrierPreview(host, location(duplicate)), /seven unique/)
+  const duplicate = componentProfile('carrier-duplicate', bundle, [{ insert: [{ id: 'dsh-ops-mode-standard', name: 'dsh-ops/mode-standard' }] }])
+  await assert.rejects(carrierPreview(host, location(duplicate)), /eight unique|unique OPS component rows/)
   assert.deepEqual(backups(duplicate), [])
   const shadow = componentProfile('carrier-home-shadow', bundle)
-  fs.writeFileSync(path.join(shadow.profile.home, 'cordis.patch.yml'), '- id: dsh-ops-file\n  name: dsh-ops/file\n  disabled: true\n')
+  fs.writeFileSync(path.join(shadow.profile.home, 'cordis.patch.yml'), '- id: dsh-ops-mode-standard\n  name: dsh-ops/mode-standard\n  disabled: true\n')
   await assert.rejects(carrierPreview(host, location(shadow)), /External name-qualified/)
   assert.deepEqual(backups(shadow), [])
   // Matching current defaults is still a meaningful preference for later upgrades.
-  const inheritedConfig = yaml.parse(bundle)[0].insert.find(row => row.id === 'dsh-ops-file').config
-  fs.writeFileSync(path.join(shadow.profile.home, 'cordis.patch.yml'), JSON.stringify([{ id: 'dsh-ops-file', name: 'dsh-ops/file', config: inheritedConfig }]))
+  const inheritedConfig = yaml.parse(bundle)[0].insert.find(row => row.id === 'dsh-ops-mode-standard').config
+  fs.writeFileSync(path.join(shadow.profile.home, 'cordis.patch.yml'), JSON.stringify([{ id: 'dsh-ops-mode-standard', name: 'dsh-ops/mode-standard', config: inheritedConfig }]))
   await assert.rejects(carrierPreview(host, location(shadow)), /External name-qualified/)
   assert.deepEqual(backups(shadow), [])
 })
@@ -133,7 +139,6 @@ await test('missing optional patches remain absent and host-invalid empty patche
       continue
     }
     const plan = await carrierPreview(host, location(fixture))
-    assert.equal(plan.changedQualifiers, 0)
     await applyCarrier(host, plan)
     if (content === undefined) assert.equal(fs.existsSync(fixture.profile.patchPath), false)
     else assert.equal(fs.readFileSync(fixture.profile.patchPath, 'utf8'), content)
@@ -146,11 +151,13 @@ await test('atomic failure restores originals and retains a bounded recovery bac
     fs.writeFileSync(fixture.profile.patchPath, source)
     const plan = await carrierPreview(host, location(fixture))
     let calls = 0
+    // The carrier leaves an unchanged patch alone, so the manifest is the only
+    // write here; fail that one after optionally committing it.
     const faulty = { ...host, atomic: { ...atomic, async writeFileAtomic(file, text, options) {
       calls++
-      if (calls === 2) {
+      if (calls === 1) {
         if (committedBeforeFailure) await atomic.writeFileAtomic(file, text, options)
-        throw new Error('injected second-write failure')
+        throw new Error('injected carrier-write failure')
       }
       return atomic.writeFileAtomic(file, text, options)
     } } }
@@ -178,6 +185,6 @@ await test('CLI preview requires an explicit stopped-profile assertion before ap
   const applied = run('--yes', '--offline')
   assert.equal(applied.status, 0, applied.stderr); assert.match(applied.stdout, /Saved and verified/)
   assert.equal(backups(fixture).length, 1)
-  assert.equal(rows(fixture).find(row => row.id === 'dsh-ops-file').name, 'dsh-ops')
+  assert.equal(rows(fixture).find(row => row.id === 'dsh-ops-mode-standard').name, 'dsh-ops')
 })
 report('settings-carrier')

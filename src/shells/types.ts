@@ -1,10 +1,10 @@
 /** Typed OPS shell boundary; host classes are borrowed through services, never imported as values. */
 import type { OpsErrorPayload } from '../kernel/outcome.js'
-import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
-import type { SandboxExecutionPolicy, SandboxProvider } from '@deepseek-ai/dsh-sandbox'
-import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
-import type { SubprocessRuntime, SubprocessOutputReader } from '@deepseek-ai/dsh-subprocess'
+import type { ToolDefinition, ToolRunContext } from '../adapter/dsh/types.js'
+import type { JsonSchemaNode } from '../adapter/dsh/types.js'
+import type { SandboxExecutionPolicy, SandboxProvider } from '../adapter/dsh/types.js'
+import type { SandboxPolicyService } from '../adapter/dsh/types.js'
+import type { SubprocessRuntime, SubprocessOutputReader } from '../adapter/dsh/types.js'
 
 export type ShellCall = Partial<Pick<ToolRunContext, 'agent' | 'callId' | 'signal' | 'token' | 'parent'>>
 export type ShellPolicy = SandboxExecutionPolicy

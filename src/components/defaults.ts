@@ -1,9 +1,9 @@
 /** Package defaults only. Saved Loader overrides take precedence over this layer. */
-export const COMPONENTS = ['shell', 'file', 'ptc', 'discovery', 'panel', 'tui', 'hide-official'] as const
+export const COMPONENTS = ['mode-minimal', 'mode-standard', 'mode-ptc', 'mode-cordis', 'discovery', 'compat', 'panel', 'tui'] as const
 export type Component = typeof COMPONENTS[number]
 export function componentEnabled(component: Component, _platform: string): boolean {
-  // The shell row is enabled on every supported platform: on POSIX it resolves the
-  // host's bash, on Windows the pinned optional payload.
-  return ['shell', 'file', 'ptc', 'discovery'].includes(component)
+  // Enhanced presets and progressive discovery start enabled; the official-tool
+  // fallback, data capture, and the TUI integration are opt-in.
+  return !['compat', 'panel', 'tui'].includes(component)
 }
 export function componentEntry(component: Component): string { return `dsh-ops/${component}` }

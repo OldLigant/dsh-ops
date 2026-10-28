@@ -7,8 +7,8 @@
  * profile or rename dsh-ops/file: name-qualified overrides would be skipped.
  * Explicit legacy panel capture:false is retained; no migration may start capture.
  */
-import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-config-editor'
+import type { Context } from './adapter/dsh/types.js'
+import type {} from './adapter/dsh/types.js'
 import { LEGACY_FASTCTX_KEYS } from './config.js'
 
 export const CONFIG_UPDATE_VERSION = 2

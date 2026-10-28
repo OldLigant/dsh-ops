@@ -1,5 +1,5 @@
 /** Pure, replayable shell cards through the host's public presentation contract. */
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition } from '../adapter/dsh/types.js'
 
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)

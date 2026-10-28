@@ -1,10 +1,10 @@
-import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type {} from '@deepseek-ai/dsh-api-gateway/client'
+import type { Context } from '../adapter/dsh/types.js'
+import type {} from '../adapter/dsh/types.js'
+import type {} from '../adapter/dsh/types.js'
+import type {} from '../adapter/dsh/types.js'
 import { RUNTIME_REMOTE } from '../settings/runtime-contract.js'
 import { en, zh } from './locales.js'
-import { ReplacementForm, DiscoveryForm } from './selections.js'
+import { DiscoveryForm } from './selections.js'
 import { ShellForm } from './shell-form.js'
 import type { SettingsProps } from './forms.js'
 import { SETTINGS_CSS } from './styles.js'
@@ -18,12 +18,17 @@ export async function apply(ctx: Context): Promise<void> {
     style.dataset.dshOpsSettings = 'true'; style.textContent = SETTINGS_CSS; document.head.append(style)
     return () => style.remove()
   }, 'dsh-ops: settings styles')
+  // Every enhanced-preset row shares the shell form: a mode row owns bashPath and
+  // publishBashTool, and the host schema already edits the PTC pool of mode-ptc.
   ctx.slots.inject('plugins.row.config', function* () {
-    yield ctx.slots.register({ name: 'plugins.row.config', key: 'dsh-ops#dsh-ops-hide-official', locale: 'dshOps' },
-      (props: SettingsProps) => props.view === 'summary' ? <>{props.t('replacements')}</> : <ReplacementForm {...props} />)
+    for (const [row, summary] of [
+      ['dsh-ops-mode-minimal', 'modeMinimal'], ['dsh-ops-mode-standard', 'modeStandard'],
+      ['dsh-ops-mode-ptc', 'modePtc'], ['dsh-ops-mode-cordis', 'modeCordis'],
+    ] as const) {
+      yield ctx.slots.register({ name: 'plugins.row.config', key: `dsh-ops#${row}`, locale: 'dshOps' },
+        (props: SettingsProps) => props.view === 'summary' ? <>{props.t(summary)}</> : <ShellForm {...props} api={ctx.remote.opsSettings} />)
+    }
     yield ctx.slots.register({ name: 'plugins.row.config', key: 'dsh-ops#dsh-ops-discovery', locale: 'dshOps' },
       (props: SettingsProps) => props.view === 'summary' ? <>{props.t('discovery')}</> : <DiscoveryForm {...props} />)
-    yield ctx.slots.register({ name: 'plugins.row.config', key: 'dsh-ops#dsh-ops-shell', locale: 'dshOps' },
-      (props: SettingsProps) => props.view === 'summary' ? <>{props.t('shell')}</> : <ShellForm {...props} api={ctx.remote.opsSettings} />)
   })
 }

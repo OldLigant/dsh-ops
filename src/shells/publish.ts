@@ -22,7 +22,7 @@
  * @module dsh-ops/shells/publish
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from '../adapter/dsh/types.js'
 import type { ResolvedConfig } from '../config.js'
 import type { ShellResolution } from './paths.js'
 import { errorMessage } from './types.js'

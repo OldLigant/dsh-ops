@@ -5,7 +5,6 @@
  * See the paired component references before opting into a different workflow.
  */
 import { publicToolName } from './policy.js'
-import { componentEnabled } from './components/defaults.js'
 import { RAW_OFFICIAL_REPLACEMENTS } from './capabilities/replacements.js'
 import type { OfficialReplacement } from './capabilities/replacements.js'
 export type { OfficialReplacement } from './capabilities/replacements.js'
@@ -19,5 +18,7 @@ export const OFFICIAL_REPLACEMENTS = Object.freeze(Object.fromEntries(
 
 export function platformSurface(platform: string = process.platform) {
   if (!['win32', 'linux', 'darwin'].includes(platform)) throw new Error(`Unsupported official-tool hiding platform: ${platform}`)
-  return { retainedCommand: platform === 'win32' ? 'pwsh' : 'bash', shellDefaultEnabled: componentEnabled('shell', platform) }
+  // The legacy shell row is always enabled where it is inserted; mode rows carry
+  // the shell policy now, so this retention fact no longer depends on rosters.
+  return { retainedCommand: platform === 'win32' ? 'pwsh' : 'bash', shellDefaultEnabled: true }
 }

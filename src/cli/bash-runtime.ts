@@ -16,7 +16,7 @@ export function commandBashRuntime(action = 'status', options: BashRuntimeComman
     managed: managedBashInventory(), git: gitBashCandidates() }
   else throw new Error('Expected bash-runtime status, install, remove, git or managed.')
   console.log(JSON.stringify(result, null, 2))
-  if (action === 'git' || action === 'managed') console.log('Apply the config object to dsh-ops/shell with the host config editor, then reload the component. No profile was changed.')
+  if (action === 'git' || action === 'managed') console.log('Apply the config object to the matching dsh-ops mode row with the host config editor, then reload the component. No profile was changed.')
   if (action === 'remove' && 'action' in result && result.action === 'preview') console.log('Pass --yes to remove only these managed Bash versions. Stop running Bash jobs before removal.')
   return 0
 }

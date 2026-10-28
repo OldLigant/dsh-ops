@@ -1,5 +1,5 @@
 /** Resolve only host-owned anchors; caller-selected descendants retain native no-follow checks. */
-import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { SandboxExecutionPolicy } from './adapter/dsh/types.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'

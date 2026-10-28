@@ -1,4 +1,4 @@
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode } from '../adapter/dsh/types.js'
 import type { ParameterSchema } from './types.js'
 
 /** Reviewed, currently implemented advanced operations. Future formats are absent. */

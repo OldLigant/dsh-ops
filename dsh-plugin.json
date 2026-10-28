@@ -3,7 +3,7 @@
   "manifestVersion": "0.15",
   "id": "dsh-ops.native",
   "name": "dsh-ops",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "license": "MIT",
   "facets": {
     "host": {
@@ -50,19 +50,19 @@
     ],
     "x-prompt-sections": [
       {
-        "name": "dsh-ops:repository-tooling:file",
+        "name": "dsh-ops:repository-tooling:mode-standard",
         "order": 3250,
-        "summary": "File operations only; follows the file component visibility."
+        "summary": "Standard-preset routing: prefer the resident OPS file tools and ops_bash, replacing read/glob/grep once their OPS counterparts are visible; published only for Standard-preset sessions when the row is on and promptPolicy is enabled."
       },
       {
-        "name": "dsh-ops:repository-tooling:shell",
+        "name": "dsh-ops:repository-tooling:mode-ptc",
         "order": 3251,
-        "summary": "Prefer bash; use visible host PowerShell for Windows-native functionality without overriding its executor; removed when the shell component is off."
+        "summary": "PTC-preset routing: scoped progressive PTC SDK guidance for PTC-preset sessions; absent outside PTC-only presentation. PTC rows publish no native routing text."
       },
       {
-        "name": "dsh-ops:repository-tooling:ptc",
+        "name": "dsh-ops:repository-tooling:mode-cordis",
         "order": 3252,
-        "summary": "Scoped progressive PTC SDK guidance; absent in Native/both presentation."
+        "summary": "Cordis-preset routing: prefer the resident OPS file tools and ops_bash, replacing read/glob/grep once their OPS counterparts are visible; published only for Cordis-preset sessions when the row is on and promptPolicy is enabled."
       }
     ],
     "x-tool-namespaces": [
@@ -99,35 +99,52 @@
         "tools": [
           "bash"
         ],
-        "shellPermission": "shell component enabled AND publishBashTool AND authoritative per-session DSH policy; restricted modes require host confinement"
+        "shellPermission": "Mode row enabled with the matching preset AND publishBashTool AND authoritative per-session DSH policy; restricted modes require host confinement"
       }
     ],
     "x-components": [
       {
-        "id": "dsh-ops-ptc",
-        "entry": "dsh-ops/ptc",
+        "id": "dsh-ops-mode-minimal",
+        "entry": "dsh-ops/mode-minimal",
+        "defaultEnabled": true,
+        "platforms": ["win32", "linux", "darwin"],
+        "targets": ["win32-x64", "linux-x64", "darwin-arm64", "darwin-x64"],
+        "presentation": "Minimal-preset sessions only; native scopes publish on the next admitted model step.",
+        "tools": ["ops_bash"],
+        "notes": "Windows shell replacement: on win32 the row replaces the official pwsh tools with ops_bash; POSIX keeps the host bash, so no shell tool is published there. Minimal publishes no routing section; advanced tools arrive through the discovery row."
+      },
+      {
+        "id": "dsh-ops-mode-standard",
+        "entry": "dsh-ops/mode-standard",
+        "defaultEnabled": true,
+        "platforms": ["win32", "linux", "darwin"],
+        "targets": ["win32-x64", "linux-x64", "darwin-arm64", "darwin-x64"],
+        "presentation": "Native scopes; the resident file tools replace read/glob/grep and the Windows shell replacement publishes ops_bash.",
+        "tools": ["ops_inspect_local_file", "ops_glob", "ops_grep", "ops_read_files", "ops_result", "ops_bash"],
+        "notes": "Windows shell replacement: on win32 the row replaces the official pwsh tools with ops_bash; POSIX keeps the host bash. Advanced capabilities are discovered through the discovery row."
+      },
+      {
+        "id": "dsh-ops-mode-ptc",
+        "entry": "dsh-ops/mode-ptc",
         "defaultEnabled": true,
         "platforms": ["win32", "linux", "darwin"],
         "architectures": ["x64", "arm64"],
         "targets": ["win32-x64", "linux-x64", "darwin-arm64", "darwin-x64"],
-        "presentation": "PTC-only; reader/result/SDK loader resident, other APIs become visible on the next agent step",
+        "presentation": "PTC-only; reader/result/SDK loader resident, other APIs become visible on the next agent step.",
         "runtime": "independent native Rust file worker",
         "tools": ["ops_inspect_local_file","ops_grep","ops_glob","ops_replace","ops_write_file","ops_edit_file","ops_diff","ops_stat","ops_copy","ops_move","ops_remove","ops_read_files","ops_read_table","ops_read_docx","ops_read_pdf","ops_batch","ops_result","ops_load_sdk"],
-        "permissions": "Per-call original DSH sandboxPolicy and sandbox.confine (host full/partial enforcement reported); full access bypasses confinement and permits explicit operation roots; subprocess owns cancellation and credential scrub"
+        "permissions": "Per-call original DSH sandboxPolicy and sandbox.confine (host full/partial enforcement reported); full access bypasses confinement and permits explicit operation roots; subprocess owns cancellation and credential scrub",
+        "notes": "PTC-preset sessions only. On win32 the row also replaces the official pwsh tools with ops_bash; POSIX keeps the host bash."
       },
       {
-        "id": "dsh-ops-shell",
-        "entry": "dsh-ops/shell",
+        "id": "dsh-ops-mode-cordis",
+        "entry": "dsh-ops/mode-cordis",
         "defaultEnabled": true,
         "platforms": ["win32", "linux", "darwin"],
-        "targets": ["win32-x64", "linux-x64", "darwin-arm64", "darwin-x64"]
-      },
-      {
-        "id": "dsh-ops-file",
-        "entry": "dsh-ops/file",
-        "defaultEnabled": true,
-        "platforms": ["win32", "linux", "darwin"],
-        "targets": ["win32-x64", "linux-x64", "darwin-arm64", "darwin-x64"]
+        "targets": ["win32-x64", "linux-x64", "darwin-arm64", "darwin-x64"],
+        "presentation": "Native scopes; the resident file tools replace read/glob/grep and the Windows shell replacement publishes ops_bash.",
+        "tools": ["ops_inspect_local_file", "ops_glob", "ops_grep", "ops_read_files", "ops_result", "ops_bash"],
+        "notes": "Windows shell replacement: on win32 the row replaces the official pwsh tools with ops_bash; POSIX keeps the host bash. Advanced capabilities are discovered through the discovery row."
       },
       {
         "id": "dsh-ops-discovery",
@@ -137,6 +154,16 @@
         "targets": ["win32-x64", "linux-x64", "darwin-arm64", "darwin-x64"],
         "presentation": "Native scopes; activation on the next admitted model step",
         "tools": ["ops_discover_tools"]
+      },
+      {
+        "id": "dsh-ops-compat",
+        "entry": "dsh-ops/compat",
+        "defaultEnabled": false,
+        "platforms": ["win32", "linux", "darwin"],
+        "replaceTools": [],
+        "retainedOfficialCommand": { "win32": "pwsh", "linux": "bash", "darwin": "bash" },
+        "readiness": "Compatibility fallback, off by default. When enabled, every official tool stays visible and no OPS replacement is applied; OPS tools remain published. This affects token efficiency and model capability, so enable it only as a safety measure when DSH cannot work properly with OPS active.",
+        "tools": []
       },
       {
         "id": "dsh-ops-panel",
@@ -153,15 +180,6 @@
         "defaultEnabled": false,
         "presentation": "Optional read-only dsh-TUI panel API v1",
         "tools": []
-      },
-      {
-        "id": "dsh-ops-hide-official",
-        "entry": "dsh-ops/hide-official",
-        "defaultEnabled": false,
-        "platforms": ["win32", "linux", "darwin"],
-        "replaceTools": [],
-        "retainedOfficialCommand": { "win32": "pwsh", "linux": "bash", "darwin": "bash" },
-        "readiness": "Opt-in per-tool read/glob/grep alternatives, selected by replaceTools (default empty). Only selected official tools are hidden after their OPS counterparts are registered in the same scope. Missing selected counterparts block that scope; unselected tools stay visible without warning lists."
       }
     ]
   },

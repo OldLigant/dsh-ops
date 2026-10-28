@@ -3,8 +3,8 @@
  * directory-only WRITE_OWNER. The DSH provider still owns confinement/grants.
  */
 import fs from 'node:fs'
-import type { Context } from '@deepseek-ai/cordis'
-import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { Context } from './adapter/dsh/types.js'
+import type { SandboxExecutionPolicy } from './adapter/dsh/types.js'
 import type { SpawnOptionsWithStdioTuple, StdioNull, StdioPipe } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'

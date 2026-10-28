@@ -1,5 +1,5 @@
 /** One-shot attribution captured at dispatch entry, before arbitrary event listeners run. */
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from './adapter/dsh/types.js'
 interface Attribution { scopes: readonly object[]; consumed: boolean }
 let changing: Attribution | undefined
 const dispatches = new WeakMap<object, readonly object[] | undefined>()
