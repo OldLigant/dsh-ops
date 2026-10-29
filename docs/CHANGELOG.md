@@ -7,6 +7,12 @@ this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Extend real-corpus calls with exact/bounded grep pairs (#384) and filename/no-match glob baselines; preserve include filters and archive effective arguments and result counts. Timing remains manual evidence.
+- 真实语料 calls 新增完整/提前停止 grep 对照（#384）与文件名/无命中 glob 基线；保留过滤条件，归档实际参数和结果计数，耗时仍仅作为人工分析证据。
+
+- Extend the opt-in three-platform bench smoke with 12 real-host calls over a tiny isolated corpus, using the same OPS build in both version arms and uploading `calls.json`. Assert dispatch, errors and output consistency, never elapsed time; default performance gates remain unchanged.
+- 可选三平台 bench smoke 新增小型隔离语料上的 12 次真实 host 调用，两版本臂使用同一 OPS 构建并上传 `calls.json`；仅断言调用、错误及输出一致性，不裁决耗时，不改变默认性能门禁。
+
 ### Fixed
 
 - Withdraw PTC publication and cancel calls when a session leaves its selected preset; keep other
@@ -60,7 +66,7 @@ this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - 将作用域内 Native 发布与替换生命周期从内置预设策略分离；Native 渲染/读取证据归入 `file/native`，类型化 PTC 投影归入 `ptc/projection`，工具契约和组件导出保持不变（#440）。
 - 收敛所有 DSH 产品类型、懒加载 scope 与 profile carrier 入口到项目自有 `adapter/dsh` 边界；保持现有 Cordis 工具注册、提示词、权限、subprocess、PTC、结果与 UI 行为不变，并将宿主兼容声明扩展至 `>=0.2.0-rc.2 <0.2.2-0`，覆盖已验证的 DSH 0.2.1-rc.4。
 - Converge DSH product types, lazy scope loading and profile-carrier entrypoints behind the project-owned `adapter/dsh` boundary without changing existing Cordis tool, prompt, policy, subprocess, PTC, result or UI behavior; widen the bounded host range to `>=0.2.0-rc.2 <0.2.2-0`, including validated DSH 0.2.1-rc.4.
- with conservative patch editing, composed-config verification and a bounded readiness turn. Archive effective switches, show them in reports, and reject comparisons across different candidate switch sets (#296).
+- Add candidate-only benchmark component switches with conservative patch editing, composed-config verification and a bounded readiness turn. Archive effective switches, show them in reports, and reject comparisons across different candidate switch sets (#296).
 - 为 benchmark 增加仅作用于 candidate 的组件开关，保守编辑补丁并核验合成配置及有时限的就绪 turn；归档实际开关、在报告中展示，并拒绝不同 candidate 开关集的混配（#296）。
 
 - Make benchmark model/reasoning selections actual shared routing conditions, archive composed configuration, and record the condition in sealed evidence. Repeated selections produce separate condition groups and reports; cross-condition pairing is refused, while historical runs remain readable as unknown (#294).
@@ -107,6 +113,11 @@ this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - 不再在每次 PTC 发布时重新探测全部已跟踪 agent。`ptc` 与 `discovery` 都在每次 reconcile 里对每个 agent 完整装配一次提示词，因此新建一个会话要付出所有仍在跟踪的会话的代价：Windows x64、38 个 bundle 下，同一个 `session/create` 八轮为 264 / 308 / 396 / 475 / 590 / 681 / 748 / 947 ms。现在每个 agent 按自己发布的工具名缓存呈现判定、只有该集合变化时才重新探测，`reconcile` 接受「本次真正受影响的 agent」，每次发布的工具快照只读工具名而不再为每个工具重建一次 scope 视图。同样八轮实测为 195 / 226 / 270 / 260 / 295 / 329 / 358 / 373 ms（#333、#359）。
 - Run CI on every PR target branch, including stacked feature branches; provide a checked ruleset payload and explicit administrator acceptance steps for required checks (#303). Repository enforcement still requires admin application.
 - CI 覆盖所有 PR 目标分支（包括堆叠功能分支），提供校验过的规则 JSON 与管理员验收步骤（#303）；仓库强制保护仍需管理员实际应用。
+- Preserve BM-05's failed read-control result and original error instead of crashing on missing `items`. Reports retain the actual failure when JavaScript and worker builds do not match.
+- BM-05 在读取控制失败时保留原始结果和错误，不再因缺少 `items` 崩溃；JavaScript 与 worker 构建不匹配时，报告保留真正的失败原因。
+
+- Add repository-only real-corpus `bench calls` and `materialize` commands. Compare official search tools with OPS, or alternate two OPS builds in one process with `--baseline-plugin-root` / `--plugin-root`; record corpus identity, coverage, per-arm build hashes and call timings. Upstream and fork use the same harness; elapsed time remains human evidence, never a CI performance gate.
+- 新增仅在仓库内使用的真实语料 `bench calls` 与 `materialize`：比较官方搜索工具和 OPS，或用 `--baseline-plugin-root` / `--plugin-root` 在同一进程中交替测两个 OPS 构建；记录语料身份、覆盖率、各臂构建哈希和调用耗时。上游与 fork 共用一套测试，耗时仍只作人类证据，不作为 CI 性能门禁。
 
 - Stop `dsh-ops-hide-official` from blocking a `run_code` (PTC) scope when `replaceTools` is set. That scope presents one program entry, and the selected counterparts are SDK functions rather than owned native providers, so readiness could never be proven and every PTC session failed prompt assembly with `READINESS_BLOCKED` as soon as one tool was selected. Readiness is now judged on the assembled surface: a scope that really kept a selected official tool still fails closed, while a collapsed scope's transport is not gated and the selected official names stay refused there.
 - 修复 `dsh-ops-hide-official` 在设置 `replaceTools` 后阻塞 `run_code`（PTC）作用域的问题。该作用域只呈现一个程序入口，所选替代工具是 SDK 函数而非已拥有的 native provider，就绪状态永远无法成立，只要选择了一项工具，每个 PTC 会话的提示词组装都会以 `READINESS_BLOCKED` 失败。现在改以装配出的表面判定：真正保留了所选官方工具的作用域仍然失败闭合；折叠作用域的 transport 不再被门禁阻塞，所选官方工具在该作用域内仍被拒绝。

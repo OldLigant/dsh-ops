@@ -362,6 +362,11 @@ jobs:
             --out bench/runs/smoke/tools.json \
             --temp-dir bench/runs/smoke/fixtures \
             --scale 0.01 --timeout-ms 180000
+      - name: Host-call comparison, one build on both sides
+        shell: bash
+        run: |
+          worker="runtime/${{ matrix.target }}/${{ matrix.worker }}"
+          node bench/calls/smoke.mjs --worker "$worker" --out bench/runs/smoke/calls.json
       # Evidence, not a gate: `report.md` / `run.json` / `panel.html` are uploaded **when they exist**
       # (a tools-only smoke produces the comparison JSON and nothing else), so a dispatch that later
       # runs more of the harness still gets its report without failing on the files it did not make.

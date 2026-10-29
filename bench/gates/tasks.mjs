@@ -93,16 +93,18 @@ export async function bm05(options) {
     const read = await host.run(owner, [[raw(publicToolName('read_files'), { files: [{ path: publicPath }] })], []])
     const denied = await host.run(owner, [[raw(publicToolName('read_files'), { files: [{ path: secretPath }] })], []])
     const write = await host.run(owner, [[raw(publicToolName('write_file'), { path: target, content: 'MUST_NOT_APPEAR', expectedRevision: 'absent' })], []])
-    const values = calls(read)[0].value.items, deniedRead = calls(denied)[0].value, deniedWrite = calls(write)[0].value
+    const readValue = calls(read)[0]?.value, deniedRead = calls(denied)[0]?.value, deniedWrite = calls(write)[0]?.value
+    const values = Array.isArray(readValue?.items) ? readValue.items : []
     const forbidden = [options.temporary, path.dirname(options.temporary), 'BENCHMARK_SECRET_BODY']
     const denialText = text(write) + text(denied)
-    const gates = { ordinaryReadSucceeded: readControlPassed(calls(read)[0].value, publicPath, 'outside ordinary data'),
+    const gates = { ordinaryReadSucceeded: readControlPassed(readValue, publicPath, 'outside ordinary data'),
       writeRejected: rejectedWithoutEffects(deniedWrite, 'POLICY_DENIED'),
       secretRejected: rejectedWithoutEffects(deniedRead, 'CREDENTIAL_DENIED'), unchanged: !fs.existsSync(target) && fs.readFileSync(secretPath, 'utf8') === 'BENCHMARK_SECRET_BODY',
       noParentPathLeak: forbidden.every(value => !denialText.includes(value)) }
-    return { id: 'BM-05', status: Object.values(gates).every(Boolean) ? 'passed' : 'failed', gates, read, denied, write,
+    const reason = gates.ordinaryReadSucceeded ? undefined : `ordinary read control failed: ${readValue?.error?.code ?? readValue?.status ?? 'missing result'}; ${readValue?.error?.message ?? 'expected a complete read with the fixture content'}`
+    return { id: 'BM-05', status: Object.values(gates).every(Boolean) ? 'passed' : 'failed', reason, gates, read, denied, write,
       enforcement: 'Real host SandboxPolicy and fixed-operation OPS bridge/worker; no arbitrary-process confinement claim.',
-      outsideOrdinaryRead: values.find(value => value.path === publicPath),
+      outsideOrdinaryRead: values.find(value => value?.path === publicPath) ?? null,
       scopeNote: 'The pinned host authorizes OS-readable ordinary outside reads. Only credential-fenced reads and workspace-escaping writes are unauthorized; this is not a blanket workspace read jail.' }
   } finally { await host.close() }
 }

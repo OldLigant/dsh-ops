@@ -17,6 +17,21 @@ On Windows append `.exe` to the baseline worker. To measure the complete Bash su
 
 The manual `Opt-in OPS acceptance benchmarks` workflow runs the same command on Windows x64, Linux x64 and Apple Silicon, independently builds the baseline, and uploads both artifacts even when a gate fails. The functional CI and release matrix also cover macOS Intel (`darwin-x64`), but the opt-in benchmark sweep does not include it yet. It changes no default CI requirement and uses no model credentials.
 
+## Matching the JavaScript and worker builds
+
+The candidate defaults to this checkout's `lib/` and `native/target/release/dsh-ops-worker`
+(append `.exe` on Windows). Rebuilding JavaScript alone does not rebuild that executable.
+After a tool rename, a stale worker can return `INVALID_ARGUMENT: Unknown capability`;
+for example, a worker built before the current `read_files` name cannot serve that call.
+Build both from the same checkout, or select a matching binary explicitly with `--worker`.
+For isolated verification, use Cargo's `--target-dir <temporary-build-dir>` and pass that
+directory's worker to the gate. A debug build can verify behavior but is not timing evidence.
+
+BM-05 retains the original failed read-control result and reports its error; missing `items`
+does not turn the report into a JavaScript exception. `calls` and `gates` reuse `gates/host.mjs`
+for host startup and dispatch; they have separate workloads and judgments. The additional
+official-search and timeout-policy options are enabled by `calls`, not by default in gates.
+
 ## Fixed workloads and comparisons
 
 | Gate | Evidence and criterion |

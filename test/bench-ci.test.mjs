@@ -65,6 +65,7 @@ await test('"CI required" neither waits on nor judges the smoke', () => {
 await test('the smoke drives the one CLI entry point with the same binary on both sides', () => {
   assert.match(benchRuns, /node bench\/cli\.mjs tools\b/u, 'the smoke goes through the single cross-platform entry')
   assert.match(benchRuns, /--baseline "\$worker" --candidate "\$worker"/u, 'both sides are the same staged worker')
+  assert.match(benchRuns, /node bench\/calls\/smoke\.mjs --worker "\$worker" --out bench\/runs\/smoke\/calls\.json/u, 'the host-call smoke uses the staged worker and an explicit evidence path')
   assert.ok(benchRuns.includes('runtime/${{ matrix.target }}/${{ matrix.worker }}'), 'each runner uses its own staged worker')
   assert.equal(benchJob['runs-on'], '${{ matrix.os }}')
   assert.deepEqual(benchJob.strategy.matrix.include, [
