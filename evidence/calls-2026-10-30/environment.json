@@ -1,0 +1,45 @@
+{
+  "capturedAt": "2026-10-30T11:45:15.784Z",
+  "os": "Windows 11 Home China",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpu": "13th Gen Intel(R) Core(TM) i9-13980HX",
+  "logicalCpus": 32,
+  "memoryGiB": 31.627552032470703,
+  "node": "v24.22.1",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "parentRevision": "4907657d5166628c7527369038097110cb6e47c4",
+  "builds": {
+    "ops": "0.5.0, built from parentRevision with node scripts/build.mjs and cargo build --release --locked",
+    "official": "dsh-tool-fs 0.2.0-rc.2, dsh-tool-fs-search 0.2.0-rc.2 from the runner checkout"
+  },
+  "corpora": {
+    "harness-client": {
+      "pin": "git-archive 22ddee3792402c3e70ec5f86a63c3e3e895a2f60 packages/client",
+      "files": 3155,
+      "mib": 21.9
+    },
+    "python-stdlib": {
+      "pin": "content: sha256 of python3.dll / python.exe",
+      "files": 4121,
+      "mib": 112.8,
+      "root": "%DSH_RUNTIME%/dsh-primary-runtime/dependencies/python/Lib"
+    },
+    "npm-tree": {
+      "pin": "npm-ci bench/corpora/npm-tree/package-lock.json",
+      "files": 14495,
+      "mib": 511.7
+    },
+    "rust-runtime": {
+      "pin": "rustup 1.99.1 default profile, full toolchain",
+      "files": 66077,
+      "mib": 1330,
+      "note": "installed under a workspace RUSTUP_HOME"
+    },
+    "npm-runtime": {
+      "pin": "none (live): the runner checkout's installed @deepseek-ai packages",
+      "files": 6077,
+      "mib": 239.7
+    }
+  }
+}
