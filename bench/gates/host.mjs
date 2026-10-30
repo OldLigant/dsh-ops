@@ -18,6 +18,11 @@ import * as OfficialTools from '@deepseek-ai/dsh-tool-fs'
 import * as OfficialSearch from '@deepseek-ai/dsh-tool-fs-search'
 import * as TimeoutPolicy from '@deepseek-ai/dsh-tool-call-timeout-policy'
 import { REPO_ROOT } from '../lib/env.mjs'
+// The shipped bundle mounts one `dsh-ops` row and retires the legacy per-component rows
+// (`file`, `shell`, `ptc`). This harness mounts those rows directly, so it opts into the
+// plugin's documented verification path; otherwise the candidate arm publishes no tools and
+// every OPS call fails as `unknown tool "ops_<name>"`.
+process.env.DSH_OPS_LEGACY_ROWS = process.env.DSH_OPS_LEGACY_ROWS ?? '1'
 let identity = 0
 const textOf = content => content.filter(block => block.type === 'text').map(block => block.text).join('\n')
 
