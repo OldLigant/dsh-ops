@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 pub mod capture;
 pub mod envelope;
+pub mod phase;
 pub mod search;
 pub mod storage;
 use serde::{Deserialize, Serialize};

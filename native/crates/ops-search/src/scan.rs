@@ -1,5 +1,6 @@
 //! Bounded, no-follow traversal. Declared exclusions differ from unobserved gaps.
 use super::*;
+use ops_protocol::phase;
 use cap_fs_ext::MetadataExt;
 use ops_protocol::search::TruncatedBy;
 use std::{collections::BTreeMap, io::Read, time::{Duration, Instant, UNIX_EPOCH}};
@@ -41,6 +42,8 @@ impl Scan {
         if gap && !matches!(reason, "oversized" | "invalid-encoding") { self.failed += 1; }
     }
     pub fn complete(&self) -> bool { !self.gap && self.stopped.is_none() }
+    /// Directory entries visited by the walk; fork-only phase timing reads it.
+    pub fn entries(&self) -> usize { self.entries }
     pub fn stamp(&mut self, path: &Path, metadata: &cap_std::fs::Metadata) {
         let modified = metadata.modified().ok().and_then(|time| time.into_std().duration_since(UNIX_EPOCH).ok()).map(|time| time.as_nanos());
         self.hash.update(serde_json::to_vec(&json!([path, metadata.dev(), metadata.ino(), metadata.len(), modified, metadata.is_dir()])).unwrap());
@@ -80,6 +83,7 @@ impl Scan {
     where F: FnMut(&Path, &cap_std::fs::Metadata, &mut Self) -> Result<()> {
         if !self.running() { return Ok(()); }
         if depth > MAX_DEPTH { self.stopped = Some(TruncatedBy::ScanBudget); return Ok(()); }
+        let t_readdir = Instant::now();
         let mut entries = match read_entries(&directory, display) {
             Ok(entries) => entries,
             Err(error) if depth == 0 => return Err(error),
@@ -96,6 +100,7 @@ impl Scan {
                 Err(_) => self.skip("unreadable-entry", false, true),
             }
         }
+        phase::add(&phase::READDIR_NS, t_readdir);
         #[cfg(windows)]
         if unc_display(display) { unchanged_directory(&directory, display)?; }
         names.sort();
@@ -109,6 +114,7 @@ impl Scan {
                 continue;
             }
             if file_path::validate_name(&name).is_err() { self.skip("invalid-path", false, true); continue; }
+            let t_stat = Instant::now();
             let metadata = match directory.symlink_metadata(&name) {
                 Ok(metadata) => metadata, Err(_) => { self.skip("unreadable-entry", false, true); continue; }
             };
@@ -122,15 +128,27 @@ impl Scan {
             #[cfg(not(windows))]
             let reparse = false;
             if file_path::link(&metadata) || host.file_type().is_symlink() || reparse { self.skip("symlink", file, false); continue; }
+            phase::add(&phase::STAT_NS, t_stat);
+            let t_filter = Instant::now();
             if hidden(&child, root) || matches!(name.as_str(), "node_modules" | "target" | ".venv") { self.skip("excluded", file, false); continue; }
+            phase::add(&phase::FILTER_NS, t_filter);
             if file {
                 if self.scanned >= self.max_files { self.stopped = Some(TruncatedBy::ScanBudget); break; }
                 self.scanned += 1;
-                if !matches_any(root, &child, patterns) { self.skip("pattern", true, false); continue; }
+                let t_match = Instant::now();
+                let matched = matches_any(root, &child, patterns);
+                phase::add(&phase::FILTER_NS, t_match);
+                if !matched { self.skip("pattern", true, false); continue; }
+                let t_stamp = Instant::now();
                 self.stamp(&child, &metadata);
+                phase::add(&phase::STAMP_NS, t_stamp);
+                let t_each = Instant::now();
                 each(&child, &metadata, self)?;
+                phase::add(&phase::CALLBACK_NS, t_each);
             } else if metadata.is_dir() {
+                let t_stamp = Instant::now();
                 self.stamp(&child, &metadata);
+                phase::add(&phase::STAMP_NS, t_stamp);
                 match directory.open_dir_nofollow(&name) {
                     Ok(next) => self.visit(root, &child, next, depth + 1, patterns, request, each)?,
                     Err(_) => self.skip("unreadable-directory", false, true),

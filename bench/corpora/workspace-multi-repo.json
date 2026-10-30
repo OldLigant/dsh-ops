@@ -1,0 +1,55 @@
+{
+  "id": "workspace-multi-repo",
+  "title": "Ten copies of a pinned client checkout: a multi-repo workspace shape",
+  "class": "source",
+  "roots": [
+    "${repo}/bench/runs/corpora/workspace-multi-repo"
+  ],
+  "shape": {
+    "files": [
+      30000,
+      33000
+    ],
+    "mebibytes": [
+      200,
+      240
+    ],
+    "maxDepth": [
+      6,
+      8
+    ],
+    "binaryBytesRatio": [
+      0.05,
+      0.2
+    ]
+  },
+  "identity": {
+    "sample": 32
+  },
+  "cases": [
+    {
+      "id": "glob-ts",
+      "tool": "glob",
+      "args": {
+        "pattern": "**/*.ts",
+        "path": "."
+      }
+    },
+    {
+      "id": "glob-name",
+      "tool": "glob",
+      "args": {
+        "pattern": "**/package.json",
+        "path": "."
+      }
+    },
+    {
+      "id": "glob-miss",
+      "tool": "glob",
+      "args": {
+        "pattern": "**/BENCH_NEVER_PRESENT_87",
+        "path": "."
+      }
+    }
+  ]
+}

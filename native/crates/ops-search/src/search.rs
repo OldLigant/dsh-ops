@@ -1,6 +1,7 @@
 //! Search execution streams bounded files and keeps only the requested output page.
 use super::*;
 use super::{scan::Scan, paging::{Cursor, Page, finish}};
+use std::time::Instant;
 use ops_protocol::search::TruncatedBy;
 
 #[derive(Debug, Deserialize)]
@@ -31,6 +32,7 @@ struct GrepArgs {
 }
 
 pub fn glob(request: &Request) -> Result<Value> {
+    let t_parse = Instant::now();
     let args: GlobArgs = serde_json::from_value(request.args.clone())?;
     if args.limit == 0 || args.limit > 10_000 { return Err(Failure::new("INVALID_ARGUMENT", "glob limit is 1-10000")); }
     if args.pattern.is_empty() || args.pattern.iter().all(|pattern| pattern.starts_with('!')) { return Err(Failure::new("INVALID_ARGUMENT", "pattern requires a positive glob")); }
@@ -39,17 +41,34 @@ pub fn glob(request: &Request) -> Result<Value> {
     let root = target(&args.path, false)?;
     if !root.is_dir() { return Err(Failure::new("INVALID_ARGUMENT", "glob path must be a directory")); }
     let cursor = Cursor::new(request, args.offset, args.continuation.as_deref())?;
+    let parse_ms = t_parse.elapsed().as_secs_f64() * 1000.0;
+    let t_walk = Instant::now();
     let mut scan = Scan::new(); let mut files = Vec::new();
     scan.walk(&root, &args.pattern, request, |file, metadata, _| {
         let modified = metadata.modified().ok().and_then(|time| time.into_std().duration_since(std::time::UNIX_EPOCH).ok()).map(|time| time.as_millis());
         files.push((file.to_path_buf(), modified, metadata.len())); Ok(())
     })?;
+    let walk_ms = t_walk.elapsed().as_secs_f64() * 1000.0;
+    let t_sort = Instant::now();
     if args.sort == "modified" { files.sort_by_key(|(_, modified, _)| std::cmp::Reverse(*modified)); }
+    let sort_ms = t_sort.elapsed().as_secs_f64() * 1000.0;
+    let t_render = Instant::now();
     let total = files.len(); let mut page = Page::new(cursor.offset, args.limit, request.output_sink.clone());
     for (ordinal, (file, modified, bytes)) in files.into_iter().enumerate() {
         if page.wants(ordinal) { page.push(if args.output_mode == "details" { json!({"path":file,"bytes":bytes,"modified":modified}) } else { json!(file) }, ordinal)?; }
     }
-    finish(scan, cursor, page, total, total, json!({}))
+    let render_ms = t_render.elapsed().as_secs_f64() * 1000.0;
+    let scanned = scan.scanned; let entries = scan.entries();
+    let walk_phases = ops_protocol::phase::snapshot();
+    let t_finish = Instant::now();
+    let value = finish(scan, cursor, page, total, total, json!({}))?;
+    let finish_ms = t_finish.elapsed().as_secs_f64() * 1000.0;
+    ops_protocol::phase::emit(json!({
+        "tool": "glob", "parseMs": parse_ms, "walkMs": walk_ms, "sortMs": sort_ms,
+        "renderMs": render_ms, "finishMs": finish_ms, "matched": total,
+        "scanned": scanned, "entries": entries, "walk": walk_phases,
+    }));
+    Ok(value)
 }
 
 /// Extract physical LF-delimited context without allocating a line table for the whole file.

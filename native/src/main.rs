@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-use dsh_ops_core::{contract::{Failure, Request, envelope::{self, Budget}}, dispatch};
+use dsh_ops_core::{contract::{phase, Failure, Request, envelope::{self, Budget}}, dispatch};
 use serde_json::json;
 use std::io::{Read, Write};
 
@@ -8,6 +8,7 @@ fn may_mutate(request: &Request) -> bool {
         && !(request.tool == "result" && request.args.get("action").and_then(serde_json::Value::as_str) == Some("page"))
 }
 fn main() {
+    let started = std::time::Instant::now();
     if std::env::args().any(|a| a == "--version") {
         println!("dsh-ops-worker {}", env!("CARGO_PKG_VERSION"));
         return;
@@ -19,6 +20,7 @@ fn main() {
         std::io::stdin().take((envelope::MAX_REQUEST_BYTES + 1) as u64)
             .read_to_end(&mut bytes).map_err(Failure::from)?;
         let mut decoded = envelope::decode(&bytes)?;
+        phase::emit(json!({"phase": "startup", "ms": started.elapsed().as_secs_f64() * 1000.0}));
         budget = decoded.budget;
         decoded.request.output_budget = budget.max_bytes;
         mutating = may_mutate(&decoded.request);
