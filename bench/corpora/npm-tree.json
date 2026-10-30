@@ -7,20 +7,20 @@
   ],
   "shape": {
     "files": [
-      30000,
-      50000
+      13000,
+      16500
     ],
     "mebibytes": [
-      700,
-      1100
+      450,
+      580
     ],
     "maxDepth": [
       10,
       14
     ],
     "binaryBytesRatio": [
-      0.3,
-      0.7
+      0.5,
+      0.75
     ]
   },
   "identity": {
@@ -41,6 +41,8 @@
         "path": "."
       }
     },
+    { "id": "glob-name", "tool": "glob", "args": { "pattern": "**/package.json", "path": "." } },
+    { "id": "glob-miss", "tool": "glob", "args": { "pattern": "**/BENCH_NEVER_PRESENT_87", "path": "." } },
     {
       "id": "glob-ts",
       "tool": "glob",

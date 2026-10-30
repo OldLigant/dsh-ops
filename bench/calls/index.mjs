@@ -190,7 +190,9 @@ export async function main(argv, io = {}) {
       // An explicit --root is an ad-hoc measurement of a tree the caller chose; it bypasses
       // the pin but the report then says `pinned: false`, because that run cannot claim a version.
       if (manifest.pin !== undefined && options.root === null) {
-        const target = resolvePinnedRoot(manifest, { repoRoot: REPO_ROOT })
+        // `RUSTUP_HOME` is honoured so a toolchain can live inside the workspace (or a CI
+        // temp dir) instead of the operator's profile; the pin resolver reads it from here.
+        const target = resolvePinnedRoot(manifest, { repoRoot: REPO_ROOT, home: os.homedir(), env: process.env })
         if (target.kind === 'content') {
           root = resolveRoot(manifest, { repoRoot: REPO_ROOT })
           pin = { kind: 'content', version: 'content', dir: null, pinned: true }

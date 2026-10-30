@@ -11,6 +11,7 @@
  */
 
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -121,7 +122,9 @@ export function main(argv, io = {}) {
   }
   // `io.repoRoot` is the suite's seam: materializing a throwaway fixture must never write
   // into the checkout's own `bench/runs/corpora/`.
-  const plan = materializePlan(manifest, { repoRoot: io.repoRoot ?? REPO_ROOT })
+  // Same context as `calls`: a rustup pin follows `RUSTUP_HOME`, so materializing into a
+  // workspace-local toolchain dir is a supported layout, not a special case.
+  const plan = materializePlan(manifest, { repoRoot: io.repoRoot ?? REPO_ROOT, home: os.homedir(), env: process.env })
   out(`[materialize] ${manifest.id}@${plan.version} (${plan.kind})`)
   if (plan.dest === null) {
     out('[materialize] content pin: nothing to build; identity.expect is checked on every run')

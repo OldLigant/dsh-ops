@@ -26,6 +26,39 @@ commit and run `node bench/cli.mjs materialize harness-client`. Use `--dry-run` 
 materialization steps. Local paths may differ between machines; the corpus pin and
 recorded content identity, not the absolute directory name, describe the workload.
 
+## The shipped corpora
+
+Five manifests ship in `bench/corpora`, in two groups decided by the scan budget. Every
+manifest declares a shape range (files, MiB, depth, binary-byte ratio) that the runner checks
+before it measures anything. In-budget corpora carry all eight cases; the two that exceed the
+10,000-file / 256 MiB budget carry the four coverage cases, because a full count never
+completes there and a hit pair would compare two partial scans.
+
+| Corpus | Class | Workload | Cases | Pin | Prepare |
+| --- | --- | --- | ---: | --- | --- |
+| `harness-client` | source | one commit's `packages/client`, 3,155 files / 21.9 MiB | 8 | `git-archive` `22ddee3` | `DSH_HARNESS_SRC=<clone with the commit> node bench/cli.mjs materialize harness-client` |
+| `python-stdlib` | runtime | an installed CPython stdlib, 4,121 files / 112.8 MiB | 8 | `content` (sha256 of `python3.dll` / `python.exe`) | the DSH runtime install; nothing to build |
+| `npm-tree` | npm | a frozen lockfile installed by `npm ci`, 14,495 files / 511.7 MiB | 4 | `npm-ci` fixture | `node bench/cli.mjs materialize npm-tree` |
+| `rust-runtime` | runtime | a rustup `1.99.1 --profile default` toolchain, 66,077 files / 1,330 MiB | 4 | `rustup` `1.99.1` | `rustup toolchain install 1.99.1 --profile default` |
+| `npm-runtime` | runtime | this checkout's installed `@deepseek-ai` packages, 6,077 files / 239.7 MiB | 8 | **none** (live directory) | the checkout's own `npm ci` |
+
+- The over-budget corpora measure coverage, not speed. `npm-tree` stops at the 10,000-file
+  budget after about 0.8 s (`truncatedBy=scan-budget`). A `<!DOCTYPE` hit query over
+  `rust-runtime`'s 62,149 HTML files was tried and dropped: the official tool fails on output size
+  while OPS' full count ends in `RESULT_UNKNOWN` at the 30 s cap, so no comparable pair exists.
+- A 30 s call cap is a separate wall from the scan budget: `npm-runtime` is inside the byte
+  budget, yet its unfiltered no-hit scan measured 20–30 s and was killed in two of three rounds.
+  That row is cap evidence, not a timing, and it is why the run reports an error rather than a number.
+- `npm-tree`'s pinned lockfile includes the Windows Bash payload (9,614 of its files), so its
+  declared shape is the Windows x64 measurement. Another platform refuses the shape check
+  instead of filing a different workload under the same name; pass `--root` for an ad-hoc run.
+- `npm-runtime` deliberately has no pin: it describes whatever the runner has installed, so
+  `--require-pinned` refuses it. It is the only corpus that answers "the packages I actually run".
+- A `rustup` pin follows `RUSTUP_HOME`, so a toolchain can live under `bench/runs/rustup` (inside
+  the workspace) instead of the operator's profile; `calls` and `materialize` read the same variable.
+- A declared shape describes the *pinned* tree, not a live checkout: `npm-tree`'s range must follow
+  what its lockfile actually installs, otherwise the first materialized run refuses it.
+
 ## Run a comparison
 
 Create a dedicated output directory first. These PowerShell examples use a unique
@@ -56,11 +89,11 @@ node bench/cli.mjs calls --corpus harness-client --require-pinned --baseline-plu
 
 ## Read the evidence
 
-The `harness-client` and `python-stdlib` manifests retain the unfiltered `grep-miss`
-scan and add matching content queries at limits 5 and 50, each with `exactTotal`
-true/false (#384). `args.include` maps to the OPS `glob` filter. Compare each
-exact/bounded OPS pair for prefix-query savings; `summary` still needs a full scan.
-Both manifests retain their extension glob and add exact-basename and no-match glob.
+Every shipped manifest keeps its unfiltered `grep-miss` scan and pairs content queries at
+limits 5 and 50 with `exactTotal` true/false (#384). `args.include` maps to the OPS `glob`
+filter. Compare each exact/bounded OPS pair for prefix-query savings; `summary` still needs a
+full scan. All five keep an extension glob and add an exact-basename and a no-match glob, so
+each corpus answers the same eight questions.
 
 These measure current traversal, not UFFS or an index's build/refresh/memory costs.
 Official tools are a separate reference: their grep has no per-call `limit` or

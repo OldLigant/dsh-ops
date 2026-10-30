@@ -9,6 +9,8 @@ this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Extend real-corpus calls with exact/bounded grep pairs (#384) and filename/no-match glob baselines; preserve include filters and archive effective arguments and result counts. Timing remains manual evidence.
 - 真实语料 calls 新增完整/提前停止 grep 对照（#384）与文件名/无命中 glob 基线；保留过滤条件，归档实际参数和结果计数，耗时仍仅作为人工分析证据。
+- Complete the real-corpus matrix: in-budget corpora carry the eight exact/bounded cases, the two over-budget corpora keep the coverage baseline plus filename/no-match globs, `npm-tree`'s declared shape follows its pinned lockfile, a `rustup` pin follows `RUSTUP_HOME`, and the docs tabulate every corpus with its case count and preparation.
+- 补全真实语料矩阵：预算内语料补齐八个完整/提前停止 case，两套超预算语料保留覆盖率基线并新增文件名/无命中 glob，`npm-tree` 的 shape 与其锁定夹具一致，`rustup` pin 跟随 `RUSTUP_HOME`，文档列出每套语料的 case 数与准备方式。
 
 - Extend the opt-in three-platform bench smoke with 12 real-host calls over a tiny isolated corpus, using the same OPS build in both version arms and uploading `calls.json`. Assert dispatch, errors and output consistency, never elapsed time; default performance gates remain unchanged.
 - 可选三平台 bench smoke 新增小型隔离语料上的 12 次真实 host 调用，两版本臂使用同一 OPS 构建并上传 `calls.json`；仅断言调用、错误及输出一致性，不裁决耗时，不改变默认性能门禁。

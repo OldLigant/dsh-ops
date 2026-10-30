@@ -353,21 +353,80 @@ await test('bounded grep preserves the shared include filter and changes only OP
     { pattern: '^export ', path: '.', glob: ['**/*.ts'], outputMode: 'content', limit: 5, exactTotal: false })
 })
 
-await test('source and Python corpora pair exact and bounded hits and retain glob baselines', () => {
-  for (const manifest of loadManifests().filter(item => ['harness-client', 'python-stdlib'].includes(item.id))) {
+await test('in-budget corpora pair exact and bounded hits, over-budget ones keep the coverage baseline', () => {
+  // The eight-case matrix answers #384 only where a scan can complete: `exactTotal=true` needs a
+  // full count, and a corpus past the 10,000-file / 256 MiB budget never produces one — its hit
+  // pair would compare two partial scans. The over-budget corpora therefore keep the coverage
+  // baseline (one unfiltered miss, one extension glob) plus the filename and no-match globs, and
+  // declare no hit pair. This is the completeness contract for both groups.
+  const overBudget = new Set(['npm-tree', 'rust-runtime'])
+  const manifests = loadManifests()
+  assert.equal(manifests.filter(manifest => overBudget.has(manifest.id)).length, overBudget.size,
+    'both over-budget corpora are shipped')
+  for (const manifest of manifests) {
+    assert.ok(manifest.cases.some(item => item.id === 'grep-miss'), `${manifest.id}: keeps the unfiltered no-hit scan`)
+    assert.equal(manifest.cases.find(item => item.id === 'glob-name')?.tool, 'glob', `${manifest.id}: has an exact-basename glob`)
+    assert.equal(manifest.cases.find(item => item.id === 'glob-miss')?.tool, 'glob', `${manifest.id}: has a no-match glob`)
+    const globs = manifest.cases.filter(item => item.tool === 'glob')
+    assert.equal(globs.length, 3, `${manifest.id}: one extension, one basename and one no-match glob`)
+    const hits = manifest.cases.filter(item => item.id.startsWith('grep-hit-'))
+    if (overBudget.has(manifest.id)) {
+      assert.deepEqual(hits, [], `${manifest.id}: a budgeted scan cannot support a hit pair`)
+      assert.equal(manifest.cases.length, 4, `${manifest.id}: four coverage cases`)
+      continue
+    }
     for (const limit of [5, 50]) {
       const exact = manifest.cases.find(item => item.id === `grep-hit-${limit}-exact`)
       const bounded = manifest.cases.find(item => item.id === `grep-hit-${limit}-bounded`)
       assert.ok(exact && bounded, `${manifest.id}: missing #384 pair at limit ${limit}`)
       assert.deepEqual(exact.args, bounded.args)
-      assert.ok(exact.args.include)
+      assert.ok(exact.args.include, `${manifest.id}: the pair keeps the shared include filter`)
       assert.deepEqual(exact.candidate, { outputMode: 'content', limit, exactTotal: true })
       assert.deepEqual(bounded.candidate, { ...exact.candidate, exactTotal: false })
     }
-    assert.ok(manifest.cases.some(item => item.id === 'grep-miss'))
-    assert.equal(manifest.cases.find(item => item.id === 'glob-name')?.tool, 'glob')
-    assert.equal(manifest.cases.find(item => item.id === 'glob-miss')?.tool, 'glob')
+    assert.equal(manifest.cases.length, 8, `${manifest.id}: eight cases, one per question`)
   }
+})
+
+await test('a rustup pin follows RUSTUP_HOME so a toolchain can stay inside the workspace', async () => {
+  await withTempDir('calls-rustup-home', async home => {
+    const toolchain = path.join(home, 'toolchains', '1.99.1-x86_64-pc-windows-msvc')
+    fs.mkdirSync(toolchain, { recursive: true })
+    const manifest = { id: 'tiny-rust', pin: { kind: 'rustup', toolchain: '1.99.1', target: ['x86_64-pc-windows-msvc'], profile: 'default' } }
+    const workspace = { repoRoot: home, home: path.join(home, 'profile'), env: { RUSTUP_HOME: home } }
+    assert.equal(resolvePinnedRoot(manifest, workspace).root, toolchain)
+    assert.equal(materializePlan(manifest, workspace).dest, toolchain)
+    // Without RUSTUP_HOME the same pin points at the profile, so 'workspace toolchain' is a
+    // choice the operator made, never an accident of where the command ran.
+    const profile = { repoRoot: home, home: path.join(home, 'profile'), env: {} }
+    assert.equal(pinTarget(manifest, profile).dir,
+      path.join(home, 'profile', '.rustup', 'toolchains', '1.99.1-x86_64-pc-windows-msvc'))
+  })
+})
+
+await test('the calls CLI resolves a rustup pin under RUSTUP_HOME', async () => {
+  await withTempDir('calls-rustup-cli', async home => {
+    const toolchain = path.join(home, 'toolchains', '1.99.1-x86_64-pc-windows-msvc')
+    fs.mkdirSync(toolchain, { recursive: true })
+    fs.writeFileSync(path.join(toolchain, 'rustc.txt'), 'rustc 1.99.1\n')
+    const manifest = {
+      id: 'tiny-rust', class: 'runtime', roots: ['${home}/absent'], shape: {}, identity: { sample: 2 },
+      pin: { kind: 'rustup', toolchain: '1.99.1', target: ['x86_64-pc-windows-msvc'] },
+      cases: [{ id: 'glob-miss', tool: 'glob', args: { pattern: '**/BENCH_NEVER_PRESENT_87', path: '.' } }],
+    }
+    const saved = process.env.RUSTUP_HOME
+    process.env.RUSTUP_HOME = home
+    try {
+      const lines = []
+      const code = await main(['--dry-run', '--corpus', 'tiny-rust', '--out', 'never-written.json'],
+        { out: line => lines.push(line), err: line => lines.push(line), manifests: [manifest] })
+      assert.equal(code, 0, lines.join('\n'))
+      assert.match(lines.join('\n'), /pin=rustup@1\.99\.1-x86_64-pc-windows-msvc/)
+    } finally {
+      if (saved === undefined) delete process.env.RUSTUP_HOME
+      else process.env.RUSTUP_HOME = saved
+    }
+  })
 })
 
 await test('argv rejects a missing destination, a bad repeat and an unknown projection', () => {
